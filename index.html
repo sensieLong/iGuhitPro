@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iGuhit Vector - Professional Vector Graphics Editor</title>
+    <!-- Google Fonts: Inter for clean UI -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for high-quality vector editing icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Paper.js -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.12.17/paper-full.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Top Application Bar (Menu) -->
+    <header class="app-header" id="app-header">
+        <div class="logo-and-menu">
+            <div class="app-logo">iG</div>
+            <nav class="top-menu">
+                <div class="menu-item">
+                    File
+                    <div class="dropdown-menu">
+                        <button id="btn-new"><i class="fa-solid fa-file"></i> New Document</button>
+                        <button id="btn-import-svg"><i class="fa-solid fa-file-import"></i> Open / Import SVG...</button>
+                        <button id="btn-export-svg"><i class="fa-solid fa-file-export"></i> Save / Export SVG</button>
+                        <button id="btn-export-png"><i class="fa-solid fa-image"></i> Export as PNG</button>
+                    </div>
+                </div>
+                <div class="menu-item">
+                    Edit
+                    <div class="dropdown-menu">
+                        <button id="btn-undo"><i class="fa-solid fa-rotate-left"></i> Undo <span class="shortcut">Ctrl+Z</span></button>
+                        <button id="btn-redo"><i class="fa-solid fa-rotate-right"></i> Redo <span class="shortcut">Ctrl+Y</span></button>
+                        <hr>
+                        <button id="btn-delete"><i class="fa-solid fa-trash"></i> Delete <span class="shortcut">Del</span></button>
+                        <button id="btn-clear"><i class="fa-solid fa-circle-xmark"></i> Clear Canvas</button>
+                    </div>
+                </div>
+                <div class="menu-item">
+                    Object
+                    <div class="dropdown-menu">
+                        <button id="btn-group"><i class="fa-solid fa-object-group"></i> Group <span class="shortcut">Ctrl+G</span></button>
+                        <button id="btn-ungroup"><i class="fa-solid fa-object-ungroup"></i> Ungroup <span class="shortcut">Ctrl+Shift+G</span></button>
+                        <hr>
+                        <button id="btn-bring-to-front"><i class="fa-solid fa-layer-group"></i> Bring to Front <span class="shortcut">Ctrl+Shift+]</span></button>
+                        <button id="btn-send-to-back"><i class="fa-solid fa-layer-group fa-flip-vertical"></i> Send to Back <span class="shortcut">Ctrl+Shift+[</span></button>
+                    </div>
+                </div>
+                <div class="menu-item">View
+                    <div class="dropdown-menu">
+                        <button id="btn-fit-screen"><i class="fa-solid fa-maximize"></i> Fit Artboard on Screen</button>
+                        <button id="btn-zoom-in-menu"><i class="fa-solid fa-magnifying-glass-plus"></i> Zoom In <span class="shortcut">Ctrl++</span></button>
+                        <button id="btn-zoom-out-menu"><i class="fa-solid fa-magnifying-glass-minus"></i> Zoom Out <span class="shortcut">Ctrl+-</span></button>
+                    </div>
+                </div>
+                <div class="menu-item">Window
+                    <div class="dropdown-menu">
+                        <button id="toggle-layers-panel"><i class="fa-solid fa-check"></i> Layers Panel</button>
+                        <button id="toggle-properties-panel"><i class="fa-solid fa-check"></i> Properties Panel</button>
+                    </div>
+                </div>
+                <div class="menu-item">About
+                    <div class="dropdown-menu">
+                        <button id="btn-about"><i class="fa-solid fa-circle-info"></i> About iGuhit Vector</button>
+                    </div>
+                </div>
+                <div class="menu-item" id="btn-docs" style="cursor: pointer;"><i class="fa-solid fa-book" style="margin-right: 5px; color: var(--color-text-muted);"></i> Documentation</div>
+            </nav>
+        </div>
+        <div class="window-controls">
+            <span class="doc-tab-title"><i class="fa-solid fa-pencil"></i> Untitled-1 @ 100% (RGB/Preview)</span>
+            <button class="win-btn min-btn">&#8212;</button>
+            <button class="win-btn max-btn">&#9633;</button>
+            <button class="win-btn close-btn">&times;</button>
+        </div>
+    </header>
+
+    <!-- Property/Control Bar -->
+    <div class="control-bar" id="control-bar">
+        <div class="control-group selection-info-container">
+            <span class="label">Selection:</span>
+            <span id="selection-info" class="value">No Selection</span>
+        </div>
+        
+        <div class="control-divider"></div>
+
+        <!-- Fill & Stroke settings in Control Bar -->
+        <div class="control-group">
+            <span class="label">Fill:</span>
+            <div class="color-picker-wrapper">
+                <input type="color" id="fill-color" value="#ffffff">
+                <button class="btn-color-none" id="btn-fill-none" title="No Fill"><i class="fa-solid fa-ban"></i></button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="label">Stroke:</span>
+            <div class="color-picker-wrapper">
+                <input type="color" id="stroke-color" value="#000000">
+                <button class="btn-color-none" id="btn-stroke-none" title="No Stroke"><i class="fa-solid fa-ban"></i></button>
+            </div>
+            <input type="number" id="stroke-width" value="2" min="0" max="100" class="number-input">
+            <span class="unit">pt</span>
+        </div>
+
+        <div class="control-divider"></div>
+
+        <div class="control-group">
+            <span class="label">Opacity:</span>
+            <input type="range" id="opacity-slider" min="0" max="100" value="100" class="range-slider">
+            <span id="opacity-val" class="value">100%</span>
+        </div>
+
+        <div class="control-divider"></div>
+
+        <!-- Quick Alignment controls -->
+        <div class="control-group align-controls" title="Align Objects">
+            <span class="label">Align:</span>
+            <button id="align-left" title="Align Left"><i class="fa-solid fa-align-left"></i></button>
+            <button id="align-center-h" title="Align Horizontal Center"><i class="fa-solid fa-align-center"></i></button>
+            <button id="align-right" title="Align Right"><i class="fa-solid fa-align-right"></i></button>
+            <button id="align-top" title="Align Top"><i class="fa-solid fa-align-left fa-rotate-90"></i></button>
+            <button id="align-center-v" title="Align Vertical Center"><i class="fa-solid fa-align-center fa-rotate-90"></i></button>
+            <button id="align-bottom" title="Align Bottom"><i class="fa-solid fa-align-right fa-rotate-90"></i></button>
+            <select id="align-to-target" class="select-input" title="Align To" style="width: 80px; margin-left: 4px;">
+                <option value="selection" selected>Selection</option>
+                <option value="artboard">Artboard</option>
+            </select>
+        </div>
+
+        <div class="control-divider"></div>
+
+        <!-- Editable Artboard Size controls -->
+        <div class="control-group" title="Artboard Dimensions">
+            <span class="label">Artboard:</span>
+            <span style="font-size: 10px; color: var(--color-text-muted); margin-left: 2px;">W:</span>
+            <input type="number" id="artboard-w-input" class="number-input" title="Artboard Width" style="width: 55px;" min="0.1" step="any">
+            <span style="font-size: 10px; color: var(--color-text-muted); margin-left: 2px;">H:</span>
+            <input type="number" id="artboard-h-input" class="number-input" title="Artboard Height" style="width: 55px;" min="0.1" step="any">
+            <select id="artboard-unit-select" class="select-input" title="Artboard Unit" style="width: 75px; margin-left: 4px;">
+                <option value="px" selected>Pixels</option>
+                <option value="in">Inches</option>
+                <option value="cm">Centimeters</option>
+                <option value="mm">Millimeters</option>
+            </select>
+        </div>
+
+        <div class="control-divider"></div>
+
+        <!-- Artboard Resolution controls -->
+        <div class="control-group" title="Artboard Resolution">
+            <span class="label">Resolution:</span>
+            <input type="number" id="artboard-res-input" class="number-input" title="Resolution (Pixels Per Inch)" style="width: 60px;" min="1" max="1200">
+            <span class="unit" style="font-size: 10px; color: var(--color-text-muted);">PPI</span>
+        </div>
+
+        <div class="control-divider"></div>
+
+        <div class="control-group flex-push-right">
+            <button id="btn-fit-screen-control" class="action-btn" title="Fit to Screen"><i class="fa-solid fa-expand"></i> Fit</button>
+            <button id="btn-delete-control" class="action-btn danger-btn" title="Delete Selection"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+    </div>
+
+    <!-- Main Workspace Area -->
+    <div class="main-container">
+        <!-- Left Sidebar: Toolbar -->
+        <aside class="left-toolbar" id="left-toolbar">
+            <div class="tools-grid">
+                <!-- Selection Tools -->
+                <button class="tool-btn active" id="tool-select" data-tool="select" title="Selection Tool (V)">
+                    <i class="fa-solid fa-arrow-pointer"></i>
+                </button>
+                <button class="tool-btn" id="tool-direct-select" data-tool="direct-select" title="Direct Selection Tool (A)">
+                    <i class="fa-solid fa-location-arrow" style="transform: rotate(-45deg);"></i>
+                </button>
+
+                <!-- Creation Tools -->
+                <button class="tool-btn" id="tool-pen" data-tool="pen" title="Pen Tool (P)">
+                    <i class="fa-solid fa-pen-nib"></i>
+                </button>
+                <button class="tool-btn" id="tool-type" data-tool="type" title="Type Tool (T)">
+                    <i class="fa-solid fa-font"></i>
+                </button>
+                
+                <button class="tool-btn" id="tool-line" data-tool="line" title="Line Segment Tool (\)">
+                    <i class="fa-solid fa-slash"></i>
+                </button>
+                <button class="tool-btn" id="tool-rectangle" data-tool="rect" title="Rectangle Tool (M)">
+                    <i class="fa-regular fa-square"></i>
+                </button>
+
+                <button class="tool-btn" id="tool-ellipse" data-tool="ellipse" title="Ellipse Tool (L)">
+                    <i class="fa-regular fa-circle"></i>
+                </button>
+                <button class="tool-btn" id="tool-pencil" data-tool="pencil" title="Brush / Pencil Tool (B)">
+                    <i class="fa-solid fa-pencil"></i>
+                </button>
+
+                <!-- Modification / Manipulation Tools -->
+                <button class="tool-btn" id="tool-eraser" data-tool="eraser" title="Eraser Tool (Shift+E)">
+                    <i class="fa-solid fa-eraser"></i>
+                </button>
+                <button class="tool-btn" id="tool-hand" data-tool="hand" title="Hand Tool / Pan (H)">
+                    <i class="fa-regular fa-hand"></i>
+                </button>
+
+                <button class="tool-btn" id="tool-zoom" data-tool="zoom" title="Zoom Tool (Z)">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+                <button class="tool-btn" id="tool-rotate" data-tool="rotate" title="Rotate Selected (R)">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+            </div>
+
+            <!-- Overlapping Fill & Stroke Panel at bottom of toolbar -->
+            <div class="toolbar-color-selector">
+                <div class="fill-stroke-container">
+                    <!-- Stroke Square (Behind or Swap click) -->
+                    <div class="color-preview-stroke" id="toolbar-stroke-indicator" title="Stroke Color (Double click to edit)"></div>
+                    <!-- Fill Square (In front) -->
+                    <div class="color-preview-fill" id="toolbar-fill-indicator" title="Fill Color (Double click to edit)"></div>
+                    <!-- Swap Fill/Stroke icon -->
+                    <button class="btn-swap-colors" id="btn-swap-colors" title="Swap Fill and Stroke (Shift+X)">
+                        <i class="fa-solid fa-right-left fa-rotate-135"></i>
+                    </button>
+                    <!-- Default Colors icon -->
+                    <button class="btn-default-colors" id="btn-default-colors" title="Default Colors (D)">
+                        <i class="fa-solid fa-border-all"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Canvas Workspace Area -->
+        <main class="canvas-workspace" id="canvas-workspace">
+            <div class="canvas-viewport" id="canvas-viewport">
+                <!-- Paper.js Canvas -->
+                <canvas id="paper-canvas" resize></canvas>
+            </div>
+        </main>
+
+        <!-- Right Sidebar Panels -->
+        <aside class="right-panels" id="right-panels">
+            <div class="panels-container">
+                <!-- Panel Header tabs -->
+                <div class="panel-tabs">
+                    <button class="tab-btn active" id="tab-layers"><i class="fa-solid fa-layer-group"></i> Layers</button>
+                    <button class="tab-btn" id="tab-properties"><i class="fa-solid fa-sliders"></i> Properties</button>
+                    <button class="tab-btn" id="tab-swatches"><i class="fa-solid fa-palette"></i> Swatches</button>
+                </div>
+
+                <!-- Layers Panel Content -->
+                <div class="panel-content active" id="panel-layers-content">
+                    <div class="panel-body flex-column">
+                        <div class="layers-list-wrapper">
+                            <ul class="layers-list" id="layers-list">
+                                <!-- Dynamic layer items go here -->
+                            </ul>
+                        </div>
+                        <div class="panel-footer layers-actions">
+                            <button id="layer-new" title="Create New Layer"><i class="fa-solid fa-plus"></i></button>
+                            <button id="layer-delete" title="Delete Selected Layer or Item"><i class="fa-solid fa-trash"></i></button>
+                            <button id="layer-up" title="Move Layer Up"><i class="fa-solid fa-angle-up"></i></button>
+                            <button id="layer-down" title="Move Layer Down"><i class="fa-solid fa-angle-down"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Properties Panel Content -->
+                <div class="panel-content" id="panel-properties-content">
+                    <div class="panel-body">
+                        <!-- Geometry info for selected items -->
+                        <div class="property-section">
+                            <h3>Transform</h3>
+                            <div class="property-grid">
+                                <label>X:</label>
+                                <input type="number" id="prop-transform-x" class="number-input" step="1">
+                                <label>Y:</label>
+                                <input type="number" id="prop-transform-y" class="number-input" step="1">
+                                <label>W:</label>
+                                <input type="number" id="prop-transform-w" class="number-input" min="1" step="1">
+                                <label>H:</label>
+                                <input type="number" id="prop-transform-h" class="number-input" min="1" step="1">
+                            </div>
+                        </div>
+
+                        <div class="property-section">
+                            <h3>Path styling</h3>
+                            <div class="property-row">
+                                <label>Stroke Cap:</label>
+                                <select id="prop-stroke-cap" class="select-input">
+                                    <option value="butt">Butt</option>
+                                    <option value="round" selected>Round</option>
+                                    <option value="square">Square</option>
+                                </select>
+                            </div>
+                            <div class="property-row">
+                                <label>Stroke Join:</label>
+                                <select id="prop-stroke-join" class="select-input">
+                                    <option value="miter">Miter</option>
+                                    <option value="round" selected>Round</option>
+                                    <option value="bevel">Bevel</option>
+                                </select>
+                            </div>
+                            <div class="property-row">
+                                <label>Dash Array:</label>
+                                <input type="text" id="prop-dash-array" placeholder="e.g. 10, 5" class="text-input">
+                            </div>
+                        </div>
+
+                        <div class="property-section">
+                            <h3>Quick Actions</h3>
+                            <div class="property-actions-grid">
+                                <button id="btn-duplicate" class="property-action-btn"><i class="fa-regular fa-copy"></i> Duplicate</button>
+                                <div class="property-rotate-action-container" style="display: flex; gap: 3px; align-items: center; grid-column: span 1;">
+                                    <input type="number" id="input-rotate-angle" value="90" class="number-input" style="width: 38px; padding: 3px 2px; font-size: 10px;" title="Rotate Angle">
+                                    <span style="font-size: 10px; color: var(--color-text-muted); margin-right: 1px;">°</span>
+                                    <button id="btn-rotate-90" class="property-action-btn" style="flex: 1; padding: 6px 2px;" title="Rotate by specified degrees"><i class="fa-solid fa-rotate-right"></i> Rotate</button>
+                                </div>
+                                <button id="btn-flip-h" class="property-action-btn"><i class="fa-solid fa-arrows-left-right"></i> Flip Horiz.</button>
+                                <button id="btn-flip-v" class="property-action-btn"><i class="fa-solid fa-arrows-up-down"></i> Flip Vert.</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Swatches Panel Content -->
+                <div class="panel-content" id="panel-swatches-content">
+                    <div class="panel-body">
+                        <div class="swatches-grid" id="swatches-grid">
+                            <!-- Predefined color palette swatches -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Narrow secondary icon-only strip on the right side of the panels (Replicating Illustrator's tab strip) -->
+            <div class="panel-icon-strip">
+                <button class="strip-icon-btn active" data-tab="layers" title="Layers Panel"><i class="fa-solid fa-layer-group"></i></button>
+                <button class="strip-icon-btn" data-tab="properties" title="Properties Panel"><i class="fa-solid fa-sliders"></i></button>
+                <button class="strip-icon-btn" data-tab="swatches" title="Swatches Panel"><i class="fa-solid fa-palette"></i></button>
+            </div>
+        </aside>
+        <!-- Floating Virtual Key Modifiers Container -->
+        <div id="virtual-modifiers-container" class="draggable-keypad">
+            <div class="keypad-header" id="keypad-drag-handle">
+                <span class="keypad-title"><i class="fa-solid fa-keyboard"></i> Modifiers</span>
+            </div>
+            <div class="keypad-buttons">
+                <button id="btn-virtual-ctrl" class="keypad-btn" title="Toggle Virtual Control Key (Ctrl)">Ctrl</button>
+                <button id="btn-virtual-alt" class="keypad-btn" title="Toggle Virtual Alt Key (Alt)">Alt</button>
+                <button id="btn-virtual-shift" class="keypad-btn" title="Toggle Virtual Shift Key (Shift)">Shift</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Status Bar -->
+    <footer class="app-status-bar" id="app-status-bar">
+        <div class="status-left">
+            <span id="active-tool-indicator"><i class="fa-solid fa-arrow-pointer"></i> Selection Tool</span>
+            <span class="status-divider"></span>
+            <span id="mouse-coords">X: 0 px, Y: 0 px</span>
+        </div>
+        <div class="status-center">
+            <span>Hold Space + Drag to Pan | Alt + Mouse Wheel to Zoom</span>
+        </div>
+        <div class="status-right">
+            <span class="zoom-controls">
+                <button id="btn-zoom-out" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>
+                <input type="text" id="zoom-percentage-input" value="100%" class="zoom-input" title="Press Enter to set zoom">
+                <button id="btn-zoom-in" title="Zoom In"><i class="fa-solid fa-plus"></i></button>
+            </span>
+        </div>
+    </footer>
+
+    <!-- File Input for SVG Importing -->
+    <input type="file" id="svg-file-input" accept=".svg" style="display: none;">
+
+    <!-- About Dialog Modal -->
+    <div class="modal-overlay" id="about-modal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h2>About iGuhit Vector</h2>
+                <button class="modal-close" id="btn-close-about">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="modal-logo">iG</div>
+                <h3>iGuhit Vector Creative Suite</h3>
+                <p>Version 1.0.0 (Pre-release)</p>
+                <p class="modal-desc">A premium, client-side vector graphics editor built on HTML5, CSS3, JavaScript, and powered by Paper.js. Styled to match professional vector design workflows.</p>
+                <div class="credits">
+                    <p>Designed and Built by <strong>Juan Salgarino</strong></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn" id="btn-close-about-ok">Close</button>
+            </div>
+        </div>
+    </div>
+    <!-- Shape Dimensions Options Modal -->
+    <div class="modal-overlay" id="shape-options-modal">
+        <div class="modal-dialog" style="width: 280px; max-width: 90%;">
+            <div class="modal-header">
+                <h2 id="shape-modal-title">Rectangle Options</h2>
+                <button class="modal-close" id="btn-close-shape-modal">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 16px;">
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <label for="shape-width-input" style="color: var(--color-text-main); font-size: 12px; font-weight: 500;">Width:</label>
+                        <div style="display: flex; align-items: center; background-color: var(--color-bg-darker); border: 1px solid var(--color-border-light); border-radius: 4px; padding: 3px 6px;">
+                            <input type="number" id="shape-width-input" value="100" step="any" min="0.001" style="background: none; border: none; color: #fff; width: 70px; outline: none; font-size: 12px; text-align: right; padding-right: 4px;">
+                            <span class="shape-unit-label" style="color: var(--color-text-muted); font-size: 11px; width: 22px; text-align: left;">px</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <label for="shape-height-input" style="color: var(--color-text-main); font-size: 12px; font-weight: 500;">Height:</label>
+                        <div style="display: flex; align-items: center; background-color: var(--color-bg-darker); border: 1px solid var(--color-border-light); border-radius: 4px; padding: 3px 6px;">
+                            <input type="number" id="shape-height-input" value="100" step="any" min="0.001" style="background: none; border: none; color: #fff; width: 70px; outline: none; font-size: 12px; text-align: right; padding-right: 4px;">
+                            <span class="shape-unit-label" style="color: var(--color-text-muted); font-size: 11px; width: 22px; text-align: left;">px</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <label for="shape-unit-select" style="color: var(--color-text-main); font-size: 12px; font-weight: 500;">Unit:</label>
+                        <select id="shape-unit-select" style="background-color: var(--color-bg-darker); border: 1px solid var(--color-border-light); border-radius: 4px; color: #fff; padding: 4px 6px; font-size: 11px; outline: none; width: 106px; cursor: pointer;">
+                            <option value="px">Pixels</option>
+                            <option value="in">Inches</option>
+                            <option value="cm">Centimeters</option>
+                            <option value="mm">Millimeters</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; background-color: var(--color-bg-darker); border-top: 1px solid var(--color-border-dark);">
+                <button class="action-btn" id="btn-cancel-shape-modal" style="background-color: var(--color-bg-active); border: 1px solid var(--color-border-light); color: var(--color-text-main); padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;">Cancel</button>
+                <button class="action-btn" id="btn-ok-shape-modal" style="background-color: var(--color-accent); color: #000; border: none; padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600;">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
