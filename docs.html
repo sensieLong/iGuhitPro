@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iGuhit Vector - Documentation & Tutorials</title>
-    <!-- Google Fonts: Inter for clean UI -->
+    <title>iGuhit Vector — Documentation & Tutorials</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- FontAwesome for high-quality vector editing icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -25,666 +23,556 @@
             --color-accent-blue: #4a90e2;
             --color-danger: #d9534f;
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             background-color: var(--color-bg-dark);
             color: var(--color-text-main);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
+            display: flex; height: 100vh; overflow: hidden;
         }
-
-        /* Sidebar Styling */
+        /* ── Sidebar ── */
         .sidebar {
-            width: 280px;
-            background-color: var(--color-bg-darker);
+            width: 270px; background-color: var(--color-bg-darker);
             border-right: 1px solid var(--color-border-dark);
-            display: flex;
-            flex-direction: column;
-            padding: 24px;
-            flex-shrink: 0;
+            display: flex; flex-direction: column; padding: 20px 16px; flex-shrink: 0;
+            overflow-y: auto;
         }
-
-        .logo-section {
-            display: flex;
-            align-items: center;
-            margin-bottom: 32px;
-        }
-
+        .logo-section { display: flex; align-items: center; margin-bottom: 28px; }
         .logo-icon {
             background: linear-gradient(135deg, #f17c22 0%, #ff9d4d 100%);
-            color: #000;
-            font-weight: 900;
-            font-size: 16px;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 6px;
-            margin-right: 12px;
-            font-family: 'Inter', Arial, sans-serif;
-            letter-spacing: -0.5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+            color: #000; font-weight: 900; font-size: 15px;
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; margin-right: 10px; letter-spacing: -0.5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
         }
-
-        .logo-text {
-            font-weight: 800;
-            font-size: 18px;
-            color: var(--color-text-bright);
-            letter-spacing: -0.5px;
+        .logo-text { font-weight: 800; font-size: 16px; color: #fff; letter-spacing: -0.5px; }
+        .logo-tag { font-size: 9px; color: var(--color-accent); text-transform: uppercase; font-weight: 700; }
+        .nav-group-label {
+            font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+            color: var(--color-text-muted); padding: 14px 8px 6px; margin-top: 4px;
         }
-
-        .logo-tag {
-            font-size: 10px;
-            color: var(--color-accent);
-            text-transform: uppercase;
-            font-weight: 700;
-            margin-top: -2px;
-        }
-
-        .nav-list {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
+        .nav-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
         .nav-item {
-            padding: 12px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 13px;
-            color: var(--color-text-main);
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 12px;
+            padding: 9px 12px; border-radius: 6px; cursor: pointer;
+            font-weight: 500; font-size: 12.5px; color: var(--color-text-main);
+            transition: all 0.15s; display: flex; align-items: center; gap: 10px;
         }
-
-        .nav-item i {
-            font-size: 14px;
-            width: 20px;
-            text-align: center;
-            color: var(--color-text-muted);
-            transition: color 0.2s ease;
-        }
-
-        .nav-item:hover {
-            background-color: var(--color-bg-panel);
-            color: var(--color-text-bright);
-        }
-
-        .nav-item:hover i {
-            color: var(--color-accent);
-        }
-
-        .nav-item.active {
-            background-color: var(--color-bg-panel);
-            color: var(--color-accent);
-            font-weight: 600;
-            border-left: 3px solid var(--color-accent);
-            border-radius: 0 6px 6px 0;
-            padding-left: 13px;
-        }
-
-        .nav-item.active i {
-            color: var(--color-accent);
-        }
-
-        /* Content Area Styling */
-        .content-container {
-            flex-grow: 1;
-            padding: 48px;
-            overflow-y: auto;
-            background-color: var(--color-bg-dark);
-        }
-
-        .doc-section {
-            display: none;
-            max-width: 900px;
-            margin: 0 auto;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .doc-section.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        h1 {
-            font-size: 32px;
-            font-weight: 800;
-            color: var(--color-text-bright);
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
-        }
-
-        .subtitle {
-            font-size: 15px;
-            color: var(--color-text-muted);
-            margin-bottom: 32px;
-            line-height: 1.6;
-        }
-
-        h2 {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--color-text-bright);
-            margin: 32px 0 16px 0;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--color-border-light);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        h3 {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--color-text-bright);
-            margin: 24px 0 12px 0;
-        }
-
-        p {
-            font-size: 14px;
-            line-height: 1.6;
-            color: var(--color-text-main);
-            margin-bottom: 16px;
-        }
-
-        strong {
-            color: var(--color-text-bright);
-            font-weight: 600;
-        }
-
-        /* Lists */
-        ul, ol {
-            margin-left: 20px;
-            margin-bottom: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        li {
-            font-size: 14px;
-            line-height: 1.6;
-            color: var(--color-text-main);
-        }
-
-        /* Keyboard Shortcuts Table */
-        .shortcut-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 24px 0;
-            background-color: var(--color-bg-darker);
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid var(--color-border-dark);
-        }
-
-        .shortcut-table th, .shortcut-table td {
-            padding: 14px 18px;
-            text-align: left;
-            font-size: 13px;
-        }
-
-        .shortcut-table th {
-            background-color: var(--color-bg-panel);
-            color: var(--color-text-bright);
-            font-weight: 600;
-            border-bottom: 1px solid var(--color-border-dark);
-        }
-
-        .shortcut-table td {
-            border-bottom: 1px solid var(--color-border-dark);
-            color: var(--color-text-main);
-        }
-
-        .shortcut-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .shortcut-table tr:hover td {
-            background-color: rgba(255, 255, 255, 0.02);
-        }
-
-        .kbd-badge {
-            background-color: var(--color-bg-panel-hover);
-            color: var(--color-accent);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 11px;
-            font-weight: 700;
-            border: 1px solid var(--color-border-light);
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-        }
-
-        /* Info Alert Box */
+        .nav-item i { font-size: 13px; width: 18px; text-align: center; color: var(--color-text-muted); }
+        .nav-item:hover { background-color: var(--color-bg-panel); color: #fff; }
+        .nav-item:hover i { color: var(--color-accent); }
+        .nav-item.active { background-color: var(--color-bg-active); color: #fff; }
+        .nav-item.active i { color: var(--color-accent); }
+        /* ── Content ── */
+        .content-container { flex: 1; overflow-y: auto; padding: 36px 44px; }
+        .doc-section { display: none; max-width: 900px; }
+        .doc-section.active { display: block; }
+        h1 { font-size: 26px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+        .subtitle { font-size: 13.5px; color: var(--color-text-muted); margin-bottom: 28px; line-height: 1.6; }
+        h2 { font-size: 17px; font-weight: 700; color: #fff; margin: 28px 0 12px; border-bottom: 1px solid var(--color-border-light); padding-bottom: 8px; }
+        h3 { font-size: 14px; font-weight: 600; color: var(--color-accent); margin: 20px 0 8px; }
+        p { font-size: 13px; line-height: 1.7; color: var(--color-text-main); margin-bottom: 12px; }
+        ul, ol { padding-left: 20px; margin-bottom: 14px; }
+        li { font-size: 13px; line-height: 1.7; color: var(--color-text-main); margin-bottom: 4px; }
+        a { color: var(--color-accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        /* Alert box */
         .alert-box {
-            background-color: rgba(241, 124, 34, 0.08);
-            border-left: 4px solid var(--color-accent);
-            padding: 18px;
-            border-radius: 4px;
-            margin: 24px 0;
+            background: linear-gradient(135deg, rgba(241,124,34,0.1), rgba(241,124,34,0.04));
+            border: 1px solid rgba(241,124,34,0.35); border-left: 3px solid var(--color-accent);
+            border-radius: 6px; padding: 14px 16px; margin: 18px 0;
         }
-
-        .alert-box h4 {
-            color: var(--color-accent-hover);
-            font-size: 14px;
-            font-weight: 700;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .alert-box h4 { font-size: 12.5px; font-weight: 600; color: var(--color-accent); margin-bottom: 5px; }
+        .alert-box p { margin: 0; font-size: 12.5px; }
+        .alert-blue {
+            background: rgba(74,144,226,0.08); border: 1px solid rgba(74,144,226,0.3);
+            border-left: 3px solid var(--color-accent-blue);
         }
-
-        .alert-box p {
-            margin-bottom: 0;
-            font-size: 13px;
-            line-height: 1.5;
-            color: var(--color-text-main);
+        .alert-blue h4 { color: var(--color-accent-blue); }
+        /* Keyboard badge */
+        .kbd-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--color-bg-panel); border: 1px solid var(--color-border-light);
+            border-radius: 4px; padding: 1px 6px; font-size: 10.5px; font-weight: 600;
+            color: var(--color-text-bright); font-family: monospace;
+            box-shadow: 0 1px 0 var(--color-border-dark);
         }
-
-        /* Checkbox Task List */
-        .task-list {
-            list-style: none;
-            margin-left: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .task-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 12px;
-            background-color: var(--color-bg-darker);
-            border: 1px solid var(--color-border-dark);
-            border-radius: 6px;
-        }
-
-        .task-item.completed {
-            border-left: 3px solid #2ecc71;
-        }
-
-        .task-checkbox {
-            color: #2ecc71;
-            font-size: 16px;
-            margin-top: 2px;
-        }
-
-        .task-content {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .task-title {
-            font-size: 13.5px;
-            font-weight: 600;
-            color: var(--color-text-bright);
-        }
-
-        .task-desc {
-            font-size: 12px;
-            color: var(--color-text-muted);
-        }
-
-        /* Scrollbars styling */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: var(--color-bg-darker);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #444;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        .feature-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin: 24px 0;
-        }
-
+        /* Shortcut table */
+        .shortcut-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12.5px; }
+        .shortcut-table thead tr { background: var(--color-bg-panel); }
+        .shortcut-table th { padding: 10px 12px; text-align: left; color: var(--color-text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--color-border-light); }
+        .shortcut-table td { padding: 10px 12px; border-bottom: 1px solid var(--color-border-dark); vertical-align: top; }
+        .shortcut-table tr:hover td { background: var(--color-bg-panel); }
+        .shortcut-table td:first-child { color: var(--color-accent); font-size: 15px; text-align: center; }
+        /* Feature grid */
+        .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 22px 0; }
         .feature-card {
-            background-color: var(--color-bg-darker);
-            border: 1px solid var(--color-border-dark);
-            padding: 20px;
-            border-radius: 8px;
-            transition: border-color 0.2s ease;
+            background: var(--color-bg-darker); border: 1px solid var(--color-border-dark);
+            padding: 18px; border-radius: 8px; transition: border-color 0.2s;
         }
-
-        .feature-card:hover {
-            border-color: var(--color-border-light);
+        .feature-card:hover { border-color: var(--color-border-light); }
+        .feature-card i { font-size: 22px; color: var(--color-accent); margin-bottom: 10px; display: block; }
+        .feature-card h4 { font-size: 13.5px; font-weight: 600; color: #fff; margin-bottom: 7px; }
+        .feature-card p { font-size: 12px; line-height: 1.55; color: var(--color-text-muted); margin: 0; }
+        /* New badge */
+        .badge-new {
+            display: inline-block; background: var(--color-accent); color: #000;
+            font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+            text-transform: uppercase; letter-spacing: 0.5px; margin-left: 6px; vertical-align: middle;
         }
-
-        .feature-card i {
-            font-size: 24px;
-            color: var(--color-accent);
-            margin-bottom: 12px;
+        .badge-fix {
+            display: inline-block; background: var(--color-accent-blue); color: #fff;
+            font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+            text-transform: uppercase; letter-spacing: 0.5px; margin-left: 6px; vertical-align: middle;
         }
-
-        .feature-card h4 {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--color-text-bright);
-            margin-bottom: 8px;
+        /* Task list */
+        .task-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+        .task-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--color-bg-darker); border: 1px solid var(--color-border-dark); border-radius: 7px; }
+        .task-item.completed .task-checkbox i { color: #2ecc71; }
+        .task-item.new-feature .task-checkbox i { color: var(--color-accent); }
+        .task-checkbox i { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+        .task-content { display: flex; flex-direction: column; gap: 2px; }
+        .task-title { font-size: 13px; font-weight: 600; color: #fff; }
+        .task-desc { font-size: 11.5px; color: var(--color-text-muted); line-height: 1.5; }
+        /* Credit box */
+        .credit-box {
+            background: linear-gradient(135deg, rgba(74,144,226,0.1), rgba(241,124,34,0.08));
+            border: 1px solid rgba(74,144,226,0.25); border-radius: 8px; padding: 18px 20px; margin: 20px 0;
         }
-
-        .feature-card p {
-            font-size: 12.5px;
-            line-height: 1.5;
-            color: var(--color-text-muted);
-            margin-bottom: 0;
-        }
+        .credit-box .name { font-size: 15px; font-weight: 700; color: #fff; }
+        .credit-box .title { font-size: 12px; color: var(--color-accent); margin-top: 3px; }
+        .credit-box .desc { font-size: 12px; color: var(--color-text-muted); margin-top: 8px; line-height: 1.6; }
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: var(--color-bg-darker); }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
     </style>
 </head>
 <body>
 
-    <!-- Sidebar navigation -->
-    <div class="sidebar">
-        <div class="logo-section">
-            <div class="logo-icon">iG</div>
-            <div>
-                <div class="logo-text">iGuhit Vector</div>
-                <div class="logo-tag">Creative Docs</div>
+<div class="sidebar">
+    <div class="logo-section">
+        <div class="logo-icon">iG</div>
+        <div>
+            <div class="logo-text">iGuhit Vector</div>
+            <div class="logo-tag">Documentation v3.0</div>
+        </div>
+    </div>
+    <div class="nav-group-label">Getting Started</div>
+    <ul class="nav-list">
+        <li class="nav-item active" onclick="go('quickstart')"><i class="fa-solid fa-rocket"></i> Quick Start</li>
+        <li class="nav-item" onclick="go('shortcuts')"><i class="fa-solid fa-keyboard"></i> Tools & Shortcuts</li>
+    </ul>
+    <div class="nav-group-label">Reference</div>
+    <ul class="nav-list">
+        <li class="nav-item" onclick="go('features')"><i class="fa-solid fa-wand-magic-sparkles"></i> Core Features</li>
+        <li class="nav-item" onclick="go('new-features')"><i class="fa-solid fa-star"></i> New Features</li>
+        <li class="nav-item" onclick="go('panels')"><i class="fa-solid fa-table-columns"></i> Panels & UI</li>
+    </ul>
+    <div class="nav-group-label">Project</div>
+    <ul class="nav-list">
+        <li class="nav-item" onclick="go('tasks')"><i class="fa-solid fa-list-check"></i> Development Log</li>
+    </ul>
+</div>
+
+<div class="content-container">
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- QUICK START -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="quickstart" class="doc-section active">
+        <h1>🚀 iGuhit Vector Graphics Editor</h1>
+        <p class="subtitle">A premium, fully client-side vector graphics editor built with HTML5, CSS3, JavaScript, and Paper.js — designed to match professional vector design environments like Adobe Illustrator.</p>
+
+        <div class="credit-box">
+            <div class="name">Juan Salgarino</div>
+            <div class="title">Creator & Lead Developer — iGuhit Vector</div>
+            <div class="desc">
+                This software is created by <strong>Juan Salgarino</strong>, the first Filipino programmer who built a Graphics Design Software.
+                iGuhit Vector represents a landmark achievement in Philippine software development — a fully-featured, browser-based vector graphics suite engineered entirely from scratch.
             </div>
         </div>
 
-        <ul class="nav-list">
-            <li class="nav-item active" onclick="switchSection('quickstart')">
-                <i class="fa-solid fa-rocket"></i> Quick Start
-            </li>
-            <li class="nav-item" onclick="switchSection('shortcuts')">
-                <i class="fa-solid fa-keyboard"></i> Tools & Shortcuts
-            </li>
-            <li class="nav-item" onclick="switchSection('features')">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> Advanced Features
-            </li>
-            <li class="nav-item" onclick="switchSection('tasks')">
-                <i class="fa-solid fa-list-check"></i> Development Tasks
-            </li>
+        <h2>Introduction</h2>
+        <p>Welcome to <strong>iGuhit Vector</strong>! This application replicates the traditional multi-panel desktop workspace. You can draw path vectors, modify control anchor points, manage complex layer hierarchies, and style layouts using advanced fills, strokes, and effects.</p>
+
+        <div class="alert-box">
+            <h4><i class="fa-solid fa-circle-info"></i> Canvas & Artboard</h4>
+            <p>The canvas acts as an endless pasteboard. The white rectangle represents your exportable <strong>Artboard</strong>. Draw anywhere — on or off-artboard — and zoom/pan freely just like in professional vector suites.</p>
+        </div>
+
+        <h2>File Structure</h2>
+        <ul>
+            <li><strong>index.html</strong> — Workspace markup: menus, panels, toolbar, canvas container.</li>
+            <li><strong>style.css</strong> — Dark UI theme, input styles, panel layouts, animation keyframes.</li>
+            <li><strong>app.js</strong> — Core engine: tools, mouse handlers, layer system, undo/redo, exports.</li>
+            <li><strong>advanced-features-addon.js</strong> — Pathfinder operations, blob brush, boolean previews.</li>
+            <li><strong>iguhit-enhancements.js</strong> — Rulers, smart guides, arrowheads, step &amp; repeat, artboard tool, AI import/export.</li>
         </ul>
-    </div>
 
-    <!-- Main Content Area -->
-    <div class="content-container">
-        
-        <!-- SECTION: QUICKSTART -->
-        <section id="quickstart" class="doc-section active">
-            <h1>🚀 iGuhit Vector Graphics Editor</h1>
-            <p class="subtitle">A premium, client-side vector graphics web application utilizing HTML5, CSS3, JavaScript, and Paper.js. Engineered to match standard professional vector design environments.</p>
+        <h2>Running the App</h2>
+        <p>The app runs 100% client-side. Serve from a local server or open <code>index.html</code> directly in a modern browser (Chrome / Edge recommended for best Paper.js performance).</p>
+        <p>Local server: <a href="http://localhost:8000" target="_blank">http://localhost:8000</a></p>
 
-            <h2>Introduction</h2>
-            <p>Welcome to <strong>iGuhit Vector</strong>! This application replicates the traditional multi-panel desktop workspace. You can draw path vectors, modify control anchor points, manage complex layer hierarchies, and style layouts using advanced fills and strokes.</p>
+        <h2>Quick Workflow</h2>
+        <ol>
+            <li>Select a tool from the left toolbar (or press its keyboard shortcut).</li>
+            <li>Draw on the canvas. Use the control bar at the top to set fill, stroke, and opacity.</li>
+            <li>Switch to the <strong>Selection Tool (V)</strong> to move and transform objects.</li>
+            <li>Use <strong>File → Export SVG / PNG / PDF</strong> to save your work.</li>
+        </ol>
+    </section>
 
-            <div class="alert-box">
-                <h4><i class="fa-solid fa-circle-info"></i> Project Design Principles</h4>
-                <p>The canvas acts as an endless pasteboard. The white rectangle in the center represents your exportable <strong>Artboard</strong>. You are free to draw off-artboard, zoom in/out, and pan around in all directions just like in professional vector suites.</p>
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- TOOLS & SHORTCUTS -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="shortcuts" class="doc-section">
+        <h1>🛠️ Tools & Keyboard Shortcuts</h1>
+        <p class="subtitle">Select tools from the left toolbar or activate them instantly with keyboard shortcuts.</p>
+
+        <table class="shortcut-table">
+            <thead>
+                <tr>
+                    <th style="width:56px;">Icon</th>
+                    <th>Tool Name</th>
+                    <th style="width:110px;">Shortcut</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><i class="fa-solid fa-arrow-pointer"></i></td>
+                    <td><strong>Selection Tool</strong></td>
+                    <td><span class="kbd-badge">V</span></td>
+                    <td>Click to select shapes. Drag bounding-box handles to scale. Drag outside handles to rotate. Drag empty canvas to marquee-select multiple objects.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-location-arrow" style="transform:rotate(-45deg)"></i></td>
+                    <td><strong>Direct Selection</strong></td>
+                    <td><span class="kbd-badge">A</span></td>
+                    <td>Select and move individual anchor points and Bezier handles on paths. Use the Segment Type buttons in the control bar to set smooth, corner, handle-in, or handle-out modes.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-crop-alt"></i></td>
+                    <td><strong>Artboard Tool</strong> <span class="badge-new">New</span></td>
+                    <td><span class="kbd-badge">Shift+A</span></td>
+                    <td>Click on any artboard to select it (highlighted in orange). Press <span class="kbd-badge">Delete</span> or use the Delete button in the control bar to remove secondary artboards. The main artboard cannot be deleted.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-pen-nib"></i></td>
+                    <td><strong>Pen Tool</strong></td>
+                    <td><span class="kbd-badge">P</span></td>
+                    <td>Click to place anchor points. Drag to extend Bezier curve handles. Click the first anchor to close the path. Press <span class="kbd-badge">Enter</span> to finish an open path.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-font"></i></td>
+                    <td><strong>Type Tool</strong></td>
+                    <td><span class="kbd-badge">T</span></td>
+                    <td>Click anywhere to place a text block. Set Font Family, Font Size, Weight, and Style in the control bar before or after placing text. Selecting a text object syncs the control bar automatically.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-slash"></i></td>
+                    <td><strong>Line Tool</strong></td>
+                    <td><span class="kbd-badge">\</span></td>
+                    <td>Click and drag to draw a straight line segment between two points.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-regular fa-square"></i></td>
+                    <td><strong>Rectangle Tool</strong></td>
+                    <td><span class="kbd-badge">M</span></td>
+                    <td>Drag to draw rectangles. Hold <span class="kbd-badge">Shift</span> for a perfect square. Click without dragging to open a size dialog with exact dimensions. Use the Corner Radius inputs in the control bar to round individual corners (Adobe Illustrator style).</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-regular fa-circle"></i></td>
+                    <td><strong>Ellipse Tool</strong></td>
+                    <td><span class="kbd-badge">L</span></td>
+                    <td>Drag to draw ellipses. Hold <span class="kbd-badge">Shift</span> for a perfect circle. Click to open dimension dialog.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-pencil"></i></td>
+                    <td><strong>Pencil / Brush</strong></td>
+                    <td><span class="kbd-badge">B</span> / <span class="kbd-badge">N</span></td>
+                    <td>Freehand drawing. Paths are smoothed automatically on mouse release.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-eraser"></i></td>
+                    <td><strong>Eraser Tool</strong></td>
+                    <td><span class="kbd-badge">Shift+E</span></td>
+                    <td>Drag over paths to erase or carve them. Bug fixed — now works reliably for any number of erase operations without stopping.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-arrows-rotate"></i></td>
+                    <td><strong>Rotate Tool</strong></td>
+                    <td><span class="kbd-badge">R</span></td>
+                    <td>Drag around the center pivot marker to rotate selected objects. You can also enter an angle in the Properties panel and click the Rotate button for a precise rotation.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-diagram-project"></i></td>
+                    <td><strong>Shape Builder</strong></td>
+                    <td><span class="kbd-badge">Shift+M</span></td>
+                    <td>Click or drag over overlapping selected paths to merge them into a single united shape, similar to Illustrator's Shape Builder Tool.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-regular fa-hand"></i></td>
+                    <td><strong>Hand Tool</strong></td>
+                    <td><span class="kbd-badge">H</span> / <span class="kbd-badge">Space</span></td>
+                    <td>Pan the canvas. Hold <span class="kbd-badge">Space</span> from any tool to temporarily activate panning, release to return.</td>
+                </tr>
+                <tr>
+                    <td><i class="fa-solid fa-magnifying-glass"></i></td>
+                    <td><strong>Zoom Tool</strong></td>
+                    <td><span class="kbd-badge">Z</span></td>
+                    <td>Click to zoom in. Hold <span class="kbd-badge">Alt</span> and click to zoom out. Drag right to zoom in dynamically, drag left to zoom out.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>General Keyboard Shortcuts</h2>
+        <table class="shortcut-table">
+            <thead><tr><th>Keys</th><th>Action</th></tr></thead>
+            <tbody>
+                <tr><td><span class="kbd-badge">Ctrl+Z</span></td><td>Undo</td></tr>
+                <tr><td><span class="kbd-badge">Ctrl+Y</span> / <span class="kbd-badge">Ctrl+Shift+Z</span></td><td>Redo</td></tr>
+                <tr><td><span class="kbd-badge">Ctrl+G</span></td><td>Group selected objects</td></tr>
+                <tr><td><span class="kbd-badge">Ctrl+Shift+G</span></td><td>Ungroup</td></tr>
+                <tr><td><span class="kbd-badge">Ctrl+D</span></td><td>Step & Repeat (or repeat last Step & Repeat)</td></tr>
+                <tr><td><span class="kbd-badge">Ctrl+R</span></td><td>Toggle Rulers</td></tr>
+                <tr><td><span class="kbd-badge">Ctrl+Shift+]</span></td><td>Bring to Front</td></tr>
+                <tr><td><span class="kbd-badge">Ctrl+Shift+[</span></td><td>Send to Back</td></tr>
+                <tr><td><span class="kbd-badge">Delete</span></td><td>Delete selected objects (or selected artboard when Artboard Tool active)</td></tr>
+                <tr><td><span class="kbd-badge">Alt+Drag</span></td><td>Duplicate while dragging</td></tr>
+                <tr><td><span class="kbd-badge">Shift+X</span></td><td>Swap Fill and Stroke colors</td></tr>
+                <tr><td><span class="kbd-badge">D</span></td><td>Reset to default colors</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- CORE FEATURES -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="features" class="doc-section">
+        <h1>🎨 Core Features</h1>
+        <p class="subtitle">The complete set of built-in capabilities in iGuhit Vector.</p>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <i class="fa-solid fa-layer-group"></i>
+                <h4>Hierarchical Layer System</h4>
+                <p>Create and manage multiple layers. Each layer has its own visibility toggle (eye icon), lock state, color indicator, and expand/collapse children. Double-click a layer name to rename it inline.</p>
             </div>
-
-            <h2>How to Run the Application</h2>
-            <p>The app runs completely client-side. The file structure consists of:</p>
-            <ul>
-                <li><strong>index.html</strong>: The skeletal workspace representing menus, panels, toolbar structures, and layout wrappers.</li>
-                <li><strong>style.css</strong>: Theme styles defining the application's dark colors, input styles, grids, panel alignments, and responsiveness.</li>
-                <li><strong>app.js</strong>: The orchestrator managing tools, mouse computations, layer states, undo stacks, and document exports.</li>
-            </ul>
-            <p>To load the app, verify it is running on your local server: <a href="http://localhost:8000" style="color: var(--color-accent); text-decoration: none;" target="_blank">http://localhost:8000</a>.</p>
-        </section>
-
-        <!-- SECTION: SHORTCUTS -->
-        <section id="shortcuts" class="doc-section">
-            <h1>🛠️ Supported Tools & Shortcuts</h1>
-            <p class="subtitle">Select tools from the left-side double-column toolbar or toggle between them quickly using keyboard hotkeys.</p>
-
-            <table class="shortcut-table">
-                <thead>
-                    <tr>
-                        <th style="width: 80px; text-align: center;">Icon</th>
-                        <th>Tool Name</th>
-                        <th style="width: 120px; text-align: center;">Hotkey</th>
-                        <th>Action Description</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-arrow-pointer"></i></td>
-                        <td><strong>Selection Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">V</span></td>
-                        <td>Click to select shapes, drag bounding box corners to scale, or drag outside selection to rotate. Drag a marquee to multi-select.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-location-arrow" style="transform: rotate(-45deg);"></i></td>
-                        <td><strong>Direct Selection</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">A</span></td>
-                        <td>Directly select, move, and edit shape anchor points or pull Bezier curves using handle extensions.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-pen-nib"></i></td>
-                        <td><strong>Pen Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">P</span></td>
-                        <td>Place path anchors on mouse click; drag to extend handles for curving paths. Close the path by clicking the start point. Hitting Enter completes an open path.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-font"></i></td>
-                        <td><strong>Type Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">T</span></td>
-                        <td>Click anywhere on the artboard to open a prompt and drop scalable text blocks.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-slash"></i></td>
-                        <td><strong>Line Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">\</span></td>
-                        <td>Draw straight vector lines between two coordinate points.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-regular fa-square"></i></td>
-                        <td><strong>Rectangle Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">M</span></td>
-                        <td>Drag to draw rectangular shapes (hold <span class="kbd-badge">Shift</span> for a perfect square). Click once on the canvas to open a dimension prompt to enter exact width and height values.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-regular fa-circle"></i></td>
-                        <td><strong>Ellipse Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">L</span></td>
-                        <td>Drag to draw circles or ellipses (hold <span class="kbd-badge">Shift</span> for a perfect circle). Click once on the canvas to open a dimension prompt to enter exact width and height values.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-pencil"></i></td>
-                        <td><strong>Pencil / Brush</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">B</span> or <span class="kbd-badge">N</span></td>
-                        <td>Freeform drawing. Smooths paths automatically and closes them upon mouse release for clean shapes.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-eraser"></i></td>
-                        <td><strong>Eraser Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">Shift + E</span></td>
-                        <td>Drag the eraser circle over selected paths to split them or carve out segments.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-arrows-rotate"></i></td>
-                        <td><strong>Rotate Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">R</span></td>
-                        <td>Select shape(s) and drag outside the center pivot marker to rotate selected items.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-regular fa-hand"></i></td>
-                        <td><strong>Hand Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">H</span> or <span class="kbd-badge">Space</span></td>
-                        <td>Hold the Spacebar or switch to Hand tool and drag your mouse to pan around the canvas.</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;"><i class="fa-solid fa-magnifying-glass"></i></td>
-                        <td><strong>Zoom Tool</strong></td>
-                        <td style="text-align: center;"><span class="kbd-badge">Z</span></td>
-                        <td>Click to zoom in. Hold <span class="kbd-badge">Alt</span> and click to zoom out. Drag right to zoom in dynamically, drag left to zoom out dynamically.</td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-
-        <!-- SECTION: FEATURES -->
-        <section id="features" class="doc-section">
-            <h1>🎨 Premium & Advanced Features</h1>
-            <p class="subtitle">Discover built-in workflows designed to match professional vector editing environments.</p>
-
-            <div class="feature-grid">
-                <div class="feature-card">
-                    <i class="fa-solid fa-magnifying-glass-plus"></i>
-                    <h4>Adobe Illustrator-Style Dynamic Zoom</h4>
-                    <p>Select the Zoom Tool (<span class="kbd-badge">Z</span>) and drag your mouse to the right to continuously zoom in, or drag to the left to zoom out. The zooming focuses perfectly on the click origin coordinates, locking the point under your mouse cursor.</p>
-                </div>
-                <div class="feature-card">
-                    <i class="fa-solid fa-object-ungroup"></i>
-                    <h4>Smart SVG Import & Artboard Matching</h4>
-                    <p>Open/Import SVG files automatically updates the workspace artboard bounds to match the viewBox of the imported file. It strips duplicate background graphics, centering files cleanly and importing vector data as individual selectable elements.</p>
-                </div>
-                <div class="feature-card">
-                    <i class="fa-solid fa-layer-group"></i>
-                    <h4>Dynamic Hierarchical Layers</h4>
-                    <p>Open sub-items showing paths, lines, and shape classes within layers. Lock individual sub-elements, toggle visibility, select target elements directly by clicking the target circle, or execute stack order operations.</p>
-                </div>
-                <div class="feature-card">
-                    <i class="fa-solid fa-clone"></i>
-                    <h4>Alt-Drag Duplication</h4>
-                    <p>Press and hold the <span class="kbd-badge">Alt</span> key (or toggle Virtual Alt on the modifier keypad) while dragging items with the Selection Tool to immediately duplicate shapes on mouse up.</p>
-                </div>
-                <div class="feature-card">
-                    <i class="fa-solid fa-sliders"></i>
-                    <h4>Draggable Virtual Modifier Keypad</h4>
-                    <p>A translucent draggable modifier keypad floats at the bottom part of the screen. Toggle <span class="kbd-badge">Ctrl</span>, <span class="kbd-badge">Alt</span>, or <span class="kbd-badge">Shift</span> to lock modifier keys on without needing to hold down keyboard buttons. Highly useful for laptop trackpads or touchscreen devices.</p>
-                </div>
-                <div class="feature-card">
-                    <i class="fa-solid fa-circle-dot"></i>
-                    <h4>Pencil Close & Select</h4>
-                    <p>The Pencil Tool (<span class="kbd-badge">B</span> / <span class="kbd-badge">N</span>) automatically completes freehand segments by closing the path loop. Paths are rendered in fully-selected mode immediately, making anchors and bezier points accessible for refinement.</p>
-                </div>
+            <div class="feature-card">
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+                <h4>Dynamic Zoom & Pan</h4>
+                <p>Drag the Zoom Tool right/left for continuous dynamic zoom. Use <span class="kbd-badge">Alt+Scroll</span> to zoom from any tool. Hold <span class="kbd-badge">Space</span> to pan temporarily without switching tools.</p>
             </div>
+            <div class="feature-card">
+                <i class="fa-solid fa-pen-nib"></i>
+                <h4>Full Bezier Pen Tool</h4>
+                <p>Click to place corner points, drag to create curved handles. Close paths by clicking the starting anchor. Works identically to the Illustrator Pen Tool, including handle drag-out on placement.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fa-solid fa-object-group"></i>
+                <h4>Pathfinder Operations</h4>
+                <p>Unite, Subtract, Intersect, and Exclude overlapping vector shapes using the Advanced panel. Boolean preview mode shows a transparent overlay before committing.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fa-solid fa-clone"></i>
+                <h4>Alt-Drag Duplication</h4>
+                <p>Hold <span class="kbd-badge">Alt</span> while dragging selected objects to instantly duplicate them on mouse release. Works with the virtual modifier keypad for tablet/touch use.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fa-solid fa-file-export"></i>
+                <h4>Multi-Format Export</h4>
+                <p>Export as SVG (editable), PNG (flat raster), PDF (artboard-bounded, one page per artboard), or Adobe Illustrator-compatible SVG. Import SVG and AI files directly.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fa-solid fa-arrows-to-dot"></i>
+                <h4>Alignment System</h4>
+                <p>Align selected objects to the selection bounding box or to the artboard edges: left, center-H, right, top, center-V, and bottom alignment buttons in the control bar.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fa-solid fa-rotate-left"></i>
+                <h4>Unlimited Undo / Redo</h4>
+                <p>Up to 30-step undo history (<span class="kbd-badge">Ctrl+Z</span>) and redo (<span class="kbd-badge">Ctrl+Y</span>). State is also autosaved to localStorage every 10 seconds and on page unload.</p>
+            </div>
+        </div>
 
-            <h2>Top Control Properties</h2>
-            <ul>
-                <li><strong>Fill and Stroke Swatches</strong>: Click and choose colors via swatches or input hex values. Click the overlapping preview box to swap active color focus.</li>
-                <li><strong>Document Size & Unit Converters</strong>: Adjust the workspace artboard width, height, and unit metrics (pixels, inches, cm, mm). If physical units are selected, changing the PPI scales the artboard accordingly.</li>
-                <li><strong>Align Panels</strong>: Select shape layers and quickly align them relative to the artboard limits or to the collective bounding box of the active selection.</li>
-            </ul>
-        </section>
+        <h2>Control Bar Properties</h2>
+        <ul>
+            <li><strong>Fill & Stroke</strong>: Color pickers + "No Fill / No Stroke" ban buttons. Click the toolbar color indicators to swap active focus between fill and stroke.</li>
+            <li><strong>Stroke Style</strong>: Solid or Dashed. Arrow start/end dropdowns: None, Triangle arrow, or Circle. Arrowheads are rendered as actual vector shapes on every path that has them set.</li>
+            <li><strong>Opacity</strong>: Range slider with live percentage display.</li>
+            <li><strong>Artboard Size & Unit</strong>: Set width, height, and unit (px, in, cm, mm). The ruler automatically displays in the selected unit with the correct scale.</li>
+            <li><strong>Math Expressions</strong>: Any numeric input field accepts math expressions (e.g. <code>100/3</code>, <code>12*4+5</code>). Press <span class="kbd-badge">Enter</span> to evaluate.</li>
+        </ul>
+    </section>
 
-        <!-- SECTION: TASKS -->
-        <section id="tasks" class="doc-section">
-            <h1>📋 Development Tasks</h1>
-            <p class="subtitle">Full list of core tasks accomplished during development of the iGuhit Vector application.</p>
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- NEW FEATURES -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="new-features" class="doc-section">
+        <h1>⭐ New & Enhanced Features</h1>
+        <p class="subtitle">All features added and fixed in the latest update (v3.0).</p>
 
-            <ul class="task-list">
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Workspace Layout Construction</span>
-                        <span class="task-desc">Constructed the Illustrator desktop layout wrapper (index.html) with Menu Bars, Control Panels, Left Tool Box, Canvas pasteboard, and Right Sidebar columns.</span>
-                    </div>
-                </li>
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Illustrator Dark UI styling</span>
-                        <span class="task-desc">Created the customized style.css stylesheet configuring standard dark panels, scrollbars, active selected indicators, and flex layout responsiveness.</span>
-                    </div>
-                </li>
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Paper.js Artboard setup</span>
-                        <span class="task-desc">Configured the drawing area bounds on canvas initialization and setup coordinate grids and shadows.</span>
-                    </div>
-                </li>
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Interactive Zoom & Pan Engines</span>
-                        <span class="task-desc">Integrated zooming scrollbars, fit options, Hand Tool panning, spacebar shortcuts, and dynamic/animated mouse drag zooming.</span>
-                    </div>
-                </li>
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Shape and Path Vector Tools</span>
-                        <span class="task-desc">Built handlers for Rectangles (M), Circles/Ellipses (L), Lines (\), Pen curve curves (P), Text Point layers (T), and smoothed Pencil lines (B).</span>
-                    </div>
-                </li>
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Selection & Transform Handlers</span>
-                        <span class="task-desc">Constructed the main selection bounding box allowing scaling, rotation, multi-selection bounding boxes, and Direct Selection anchor coordinate alterations.</span>
-                    </div>
-                </li>
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Context Properties panel Sync</span>
-                        <span class="task-desc">Linked stroke widths, fills, alignments, and opacity values directly to the active canvas selection.</span>
-                    </div>
-                </li>
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Hierarchical Sub-layers list</span>
-                        <span class="task-desc">Integrated a chevron-expandable layers panel listing paths, toggling individual layer visibilities, targets, lock properties, and deletion triggers.</span>
-                    </div>
-                </li>
-                <li class="task-item completed">
-                    <span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span>
-                    <div class="task-content">
-                        <span class="task-title">Rebranding to iGuhit Vector</span>
-                        <span class="task-desc">Updated system titles, menu about overlays, default Type tool strings, and redesigned the orange logo icon with linear gradients and new initials (iG).</span>
-                    </div>
-                </li>
-            </ul>
-        </section>
+        <h2>Rulers <span class="badge-new">New</span></h2>
+        <p>Horizontal and vertical rulers now border the canvas workspace. Ruler tick marks, labels, and minor ticks all automatically match the currently selected artboard unit — pixels, inches, centimeters, or millimeters — scaled to the correct PPI. Toggle rulers on/off with <span class="kbd-badge">Ctrl+R</span> or <strong>View → Toggle Rulers</strong>. Rulers update live as you zoom and pan.</p>
 
-    </div>
+        <h2>Smart Guides <span class="badge-new">New</span></h2>
+        <p>When dragging objects, magenta guide lines snap and appear when an object's edge or center aligns with any other object's edge or center, and with the artboard edges. Guides are rendered as SVG lines directly over the canvas for guaranteed visibility. Snapping auto-clears after 700ms. Toggle via <strong>View → Toggle Smart Guides</strong>.</p>
 
-    <script>
-        function switchSection(sectionId) {
-            // Remove active classes from navigation items
-            const navItems = document.querySelectorAll('.nav-item');
-            navItems.forEach(item => item.classList.remove('active'));
+        <div class="alert-box alert-blue">
+            <h4><i class="fa-solid fa-lightbulb"></i> Tip</h4>
+            <p>Smart Guides snap to left, center-X, right, top, center-Y, and bottom edges of all visible objects and the artboard simultaneously.</p>
+        </div>
 
-            // Add active class to clicked navigation item
-            const clickedItem = Array.from(navItems).find(item => item.getAttribute('onclick').includes(sectionId));
-            if (clickedItem) clickedItem.classList.add('active');
+        <h2>Type Tool — Font Controls <span class="badge-fix">Fixed</span></h2>
+        <p>When the Type Tool is active, the control bar now correctly shows: <strong>Font Family</strong> (13 system fonts), <strong>Font Size</strong>, <strong>Font Weight</strong> (Light / Regular / Semibold / Bold / Black), and <strong>Font Style</strong> (Normal / Italic). Selecting an existing text object syncs all controls to that object's settings. Changing any control immediately updates the selected text.</p>
 
-            // Hide all document sections
-            const sections = document.querySelectorAll('.doc-section');
-            sections.forEach(sec => sec.classList.remove('active'));
+        <h2>Corner Radius (Rectangle) <span class="badge-fix">Fixed</span></h2>
+        <p>When the Rectangle Tool is active or any path is selected, the control bar shows four corner radius inputs (TL, TR, BR, BL) with a Link toggle button. When linked, all four corners update together. Unlink to set individual radii. Uses Adobe Illustrator's Bezier approximation for circular arcs (<code>k = 0.5523</code>). Corner data is stored on the path and re-synced when the object is re-selected. Supports math expressions.</p>
 
-            // Show target section
-            const targetSection = document.getElementById(sectionId);
-            if (targetSection) targetSection.classList.add('active');
-        }
-    </script>
+        <h2>Direct Selection — Segment Type Buttons <span class="badge-fix">Fixed</span></h2>
+        <p>When the Direct Selection Tool is active, the control bar shows four segment-type buttons:</p>
+        <ul>
+            <li><strong>Smooth</strong> — Applies catmull-rom smooth handles to selected segments</li>
+            <li><strong>Corner</strong> — Removes both handles, creating a sharp corner point</li>
+            <li><strong>← In</strong> — Keeps the in-handle, zeros out the out-handle</li>
+            <li><strong>Out →</strong> — Keeps the out-handle, zeros out the in-handle</li>
+        </ul>
+
+        <h2>Artboard Tool <span class="badge-new">New</span></h2>
+        <p>Press <span class="kbd-badge">Shift+A</span> or click the Artboard Tool in the toolbar. Click any artboard on the canvas to select it — it highlights in orange. Press <span class="kbd-badge">Delete</span> or click the Delete button in the control bar to remove secondary artboards. The main artboard is protected from deletion. <strong>Selection persists across tool switches</strong> — switching to another tool and back to the Artboard Tool remembers the last selected artboard.</p>
+
+        <h2>Add New Artboard <span class="badge-fix">Fixed</span></h2>
+        <p>Clicking <strong>Add New Artboard</strong> in the Advanced panel now creates only the artboard visual — no rogue path object is created in the draw layer. New artboards are placed in a grid layout with proper spacing.</p>
+
+        <h2>Layer Radio Button & Visibility Toggle <span class="badge-fix">Fixed</span></h2>
+        <p>Each layer row in the Layers panel now shows a <strong>radio-style circle</strong> on the left. Click it to select all items in that layer; click again to deselect all. The eye icon on every layer toggles visibility — clicking it hides/shows all objects in that layer at once.</p>
+
+        <h2>Layer Rename on Double-Click <span class="badge-new">New</span></h2>
+        <p>Double-click any layer name in the Layers panel to make it editable inline. Press <span class="kbd-badge">Enter</span> or click away to save. The name updates on the Paper.js layer object immediately.</p>
+
+        <h2>Adobe Illustrator Import & Export <span class="badge-new">New</span></h2>
+        <ul>
+            <li><strong>File → Import Illustrator (.ai / .svg)</strong> — Opens a file picker for <code>.ai</code> and <code>.svg</code> files. Modern AI files (CS3+) are SVG internally and import as fully editable paths.</li>
+            <li><strong>File → Export as Illustrator (.svg)</strong> — Exports your artwork as an SVG with full Adobe Illustrator-compatible XML namespaces (<code>xmlns:a</code>, <code>sfw</code> metadata block, <code>xml:space="preserve"</code>) that Illustrator opens as an editable document.</li>
+        </ul>
+
+        <h2>PDF Export — Artboard-Bounded, Single Download <span class="badge-fix">Fixed</span></h2>
+        <p>PDF export now renders only the artboard region (not the full canvas) by projecting artboard coordinates to screen pixels and drawing just that region. Multiple artboards each get their own PDF page at the correct dimensions. <strong>Duplicate download bug fixed</strong> — there is now exactly one event listener wired to the export button.</p>
+
+        <h2>Cropmarks <span class="badge-fix">Fixed</span></h2>
+        <p>Generate cropmarks (<strong>Object → Create Cropmarks</strong>) from any selected object. Cropmarks match Adobe Illustrator's spec: 0.25pt black strokes, 8.5pt gap, 14pt length, placed at all four corners. All eight lines are automatically grouped into a single named group ("Crop Marks") so your layer list stays clean.</p>
+
+        <h2>Arrowheads <span class="badge-fix">Fixed</span></h2>
+        <p>Arrow Start and Arrow End dropdowns in the control bar now draw actual vector arrowheads (filled triangles or circles) at the endpoints of any path that has them set. Arrowheads update on every view redraw and sync correctly when you select a path that already has arrow data.</p>
+
+        <h2>Step & Repeat <span class="badge-new">New</span></h2>
+        <p>Found in the <strong>Properties panel</strong>. Select one or more objects, set a Count, ΔX (horizontal offset), and ΔY (vertical offset), then click <strong>Step & Repeat</strong>. The selected objects are duplicated <em>Count</em> times with each copy offset by ΔX/ΔY from the previous. Press <span class="kbd-badge">Ctrl+D</span> to repeat the last Step & Repeat operation, or click <strong>Repeat Last</strong>.</p>
+
+        <h2>Button Animations & Sound Effects <span class="badge-new">New</span></h2>
+        <p>Every button in the application shows a ripple wave animation on click. A Web Audio API synthesizer plays a unique tone per button type: tool buttons play a descending sine sweep, action buttons play a rising triangle tone. No audio files required.</p>
+
+        <h2>Math Expression Evaluator <span class="badge-new">New</span></h2>
+        <p>Type any math expression into any numeric input field and press <span class="kbd-badge">Enter</span> to evaluate it: <code>100/3</code>, <code>24*2+4</code>, <code>(50+30)*2</code>. Works in stroke width, font size, corner radius, transform fields, artboard dimensions, and all other inputs.</p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- PANELS & UI -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="panels" class="doc-section">
+        <h1>📐 Panels & UI Reference</h1>
+        <p class="subtitle">Every panel, tab, and control area explained.</p>
+
+        <h2>Right Sidebar Tabs</h2>
+        <p>The right sidebar has four tabs, toggled by clicking the tab button or the icon strip on the far right:</p>
+        <ul>
+            <li><strong>Layers</strong> — Layer hierarchy with expand/collapse, visibility, lock, rename, radio (select-all), and layer target.</li>
+            <li><strong>Properties</strong> — Transform (X, Y, W, H), Stroke Cap/Join, Dash Array, Rotate, Flip, Duplicate, and <strong>Step & Repeat</strong>.</li>
+            <li><strong>Swatches</strong> — Predefined color palette. Click a swatch to apply to the active fill or stroke.</li>
+            <li><strong>Advanced</strong> — Pathfinder (Unite, Subtract, Intersect, Exclude), Path Operations (Offset, Expand, Live Corners), Boolean Preview, and Add New Artboard.</li>
+        </ul>
+
+        <h2>Control Bar (Top)</h2>
+        <p>The control bar is context-sensitive and shows different groups depending on the active tool and selection:</p>
+        <ul>
+            <li><strong>Type Tool active / text selected</strong>: Font Family, Size, Weight, Style</li>
+            <li><strong>Rect Tool active / path selected</strong>: Corner Radius (TL/TR/BR/BL) with Link toggle</li>
+            <li><strong>Direct Select Tool active</strong>: Segment Type buttons (Smooth, Corner, ←In, Out→)</li>
+            <li><strong>Artboard Tool active</strong>: Selected artboard name + Delete button</li>
+            <li><strong>Always visible</strong>: Fill, Stroke, Stroke Width, Stroke Style, Arrow Start/End, Opacity, Align, Artboard Size, PPI</li>
+        </ul>
+
+        <h2>Floating Virtual Modifier Keypad</h2>
+        <p>The draggable keypad in the bottom area provides toggleable <span class="kbd-badge">Ctrl</span>, <span class="kbd-badge">Alt</span>, and <span class="kbd-badge">Shift</span> keys. Useful for tablet, touchscreen, or single-hand input. Active modifiers glow orange. Drag the header to reposition.</p>
+
+        <h2>Status Bar (Bottom)</h2>
+        <p>Shows the active tool name, live cursor coordinates (updated on mouse move), canvas hints, and the zoom percentage input (editable — type a value and press Enter).</p>
+
+        <h2>Rulers</h2>
+        <p>Horizontal and vertical rulers are displayed at the top and left edges of the canvas viewport. Tick marks are labeled in the current artboard unit (px, in, cm, mm) and update as you zoom and pan. Toggle with <span class="kbd-badge">Ctrl+R</span>.</p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- DEVELOPMENT LOG -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="tasks" class="doc-section">
+        <h1>📋 Development Log</h1>
+        <p class="subtitle">Complete history of features built and fixed across all versions of iGuhit Vector.</p>
+
+        <h2>Version 3.0 — Latest</h2>
+        <ul class="task-list">
+            <li class="task-item new-feature"><span class="task-checkbox"><i class="fa-solid fa-circle-plus"></i></span><div class="task-content"><span class="task-title">Rulers with Unit Matching</span><span class="task-desc">Horizontal and vertical canvas rulers drawn on HTML5 canvas, tick marks and labels automatically match artboard unit (px/in/cm/mm) and PPI. Toggle Ctrl+R.</span></div></li>
+            <li class="task-item new-feature"><span class="task-checkbox"><i class="fa-solid fa-circle-plus"></i></span><div class="task-content"><span class="task-title">Smart Guides (SVG overlay)</span><span class="task-desc">Magenta snap lines appear over the canvas as SVG elements when dragging objects near edges or centers of other objects or the artboard. Guaranteed visible, auto-clears after 700ms.</span></div></li>
+            <li class="task-item new-feature"><span class="task-checkbox"><i class="fa-solid fa-circle-plus"></i></span><div class="task-content"><span class="task-title">Artboard Tool (Shift+A)</span><span class="task-desc">Click artboards to select (orange highlight), Delete key removes secondary artboards. Selection persists across tool switches.</span></div></li>
+            <li class="task-item new-feature"><span class="task-checkbox"><i class="fa-solid fa-circle-plus"></i></span><div class="task-content"><span class="task-title">Layer Radio Button + Visibility</span><span class="task-desc">Radio circle on each layer row: click to select all items, click again to deselect. Eye icon toggles layer-level visibility.</span></div></li>
+            <li class="task-item new-feature"><span class="task-checkbox"><i class="fa-solid fa-circle-plus"></i></span><div class="task-content"><span class="task-title">Layer Rename (Double-Click)</span><span class="task-desc">Double-click any layer name in the Layers panel to rename it inline. Enter or blur to save.</span></div></li>
+            <li class="task-item new-feature"><span class="task-checkbox"><i class="fa-solid fa-circle-plus"></i></span><div class="task-content"><span class="task-title">Step & Repeat (Ctrl+D)</span><span class="task-desc">Properties panel section with Count, ΔX, ΔY inputs. Duplicates selected objects N times with cumulative offsets. Ctrl+D repeats last action.</span></div></li>
+            <li class="task-item new-feature"><span class="task-checkbox"><i class="fa-solid fa-circle-plus"></i></span><div class="task-content"><span class="task-title">Adobe Illustrator Import & Export</span><span class="task-desc">File menu: Import AI/SVG (reads .ai as SVG), Export as Illustrator SVG (with adobe xmlns namespaces and sfw metadata).</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">PDF Export Fix — Artboard-Only, Single Download</span><span class="task-desc">PDF now renders only the artboard region via projectToView coordinate mapping. Duplicate download bug fixed — exactly one listener.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Cropmarks Fix — Grouped, AI-Style</span><span class="task-desc">Cropmarks are now grouped into a single named group ("Crop Marks") for a clean layer list. 0.25pt black strokes, 8.5pt gap, 14pt length.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Arrowheads Fix</span><span class="task-desc">Arrow Start/End now draw actual filled triangle or circle vector shapes at path endpoints, redrawn on every view update.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Eraser Bug Fix</span><span class="task-desc">Eraser uses a dedicated eraserPath variable instead of activePath, preventing tool-state corruption after 3+ erases.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Control Bar Contextual Visibility Fix</span><span class="task-desc">Type, Corner, Direct-Select, and Artboard controls now show/hide correctly on every tool switch and selection change via patched onSelectionChanged.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Add New Artboard Fix</span><span class="task-desc">No longer creates a rogue path item in the draw layer. Uses the proper artboard layer system exclusively.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Advanced Panel → Sidebar Tab</span><span class="task-desc">Advanced Vector panel is now the "Adv" tab in the right sidebar, toggled like Layers/Properties/Swatches.</span></div></li>
+        </ul>
+
+        <h2>Version 2.0</h2>
+        <ul class="task-list">
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Type Tool Font Controls</span><span class="task-desc">Font Family, Size, Weight, Style in control bar. Syncs from selected text objects.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Rectangle Corner Radius</span><span class="task-desc">Per-corner radius inputs with link toggle. Bezier arc reconstruction (k=0.5523). Adobe Illustrator style.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Direct Selection Segment Types</span><span class="task-desc">Smooth, Corner, Handle-In, Handle-Out buttons in control bar for selected path segments.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Math Expression Evaluator</span><span class="task-desc">All numeric inputs evaluate math on Enter. Supports +, -, *, /, (), decimals.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Button Ripple Animations + Sound</span><span class="task-desc">CSS ripple on all buttons. Web Audio API synthesized click tones per button type.</span></div></li>
+        </ul>
+
+        <h2>Version 1.0 — Foundation</h2>
+        <ul class="task-list">
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Workspace Layout</span><span class="task-desc">Illustrator-style layout: menu bar, control bar, left toolbar, canvas pasteboard, right sidebar.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Dark UI Theme</span><span class="task-desc">Full dark CSS theme with custom scrollbars, panel styles, flex layouts, and CSS variables.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Paper.js Artboard & Canvas</span><span class="task-desc">Layered artboard system with shadow, grid, and locked artboard layer separate from draw layer.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">All Vector Drawing Tools</span><span class="task-desc">Pen, Pencil/Brush, Rectangle, Ellipse, Line, Type, Eraser, Rotate, Shape Builder, Zoom, Hand.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Selection & Transform</span><span class="task-desc">Bounding box handles for scale and rotation, marquee selection, direct selection of anchor points and handles.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Hierarchical Layers Panel</span><span class="task-desc">Layers with expand/collapse, visibility, lock, color indicator, child item targets.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Pathfinder — Advanced Addon</span><span class="task-desc">Unite, Subtract, Intersect, Exclude via paper.js boolean ops. Offset Path, Expand Appearance, Live Corners, Blob Brush.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">SVG Import & Export</span><span class="task-desc">Import SVG files with artboard auto-resize. Export SVG, PNG, and PDF.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Multi-Artboard System</span><span class="task-desc">Create additional artboards with grid layout. Each artboard gets its own PDF page on export.</span></div></li>
+            <li class="task-item completed"><span class="task-checkbox"><i class="fa-solid fa-circle-check"></i></span><div class="task-content"><span class="task-title">Undo / Redo + Autosave</span><span class="task-desc">30-step undo/redo stacks. localStorage autosave every 10 seconds and on page close.</span></div></li>
+        </ul>
+    </section>
+
+</div>
+
+<script>
+function go(id) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.doc-section').forEach(s => s.classList.remove('active'));
+    const section = document.getElementById(id);
+    if (section) section.classList.add('active');
+    const clicked = Array.from(document.querySelectorAll('.nav-item')).find(n => n.getAttribute('onclick')?.includes(id));
+    if (clicked) clicked.classList.add('active');
+}
+</script>
 </body>
 </html>

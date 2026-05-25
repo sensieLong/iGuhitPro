@@ -71,7 +71,8 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 0 10px;
-    z-index: 100;
+    z-index: 1000;
+    position: relative;
 }
 
 .logo-and-menu {
@@ -125,7 +126,7 @@ body {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
     min-width: 220px;
     border-radius: 0 0 4px 4px;
-    z-index: 200;
+    z-index: 2000;
 }
 
 .menu-item:hover .dropdown-menu {
@@ -1354,4 +1355,99 @@ body {
     color: #000000;
     border-color: var(--color-accent);
     box-shadow: 0 0 8px rgba(241, 124, 34, 0.4);
+}
+
+/* ═══════════════════════════════════════════════════════
+   iGuhit Enhancements v3 — Additional Styles
+═══════════════════════════════════════════════════════ */
+
+/* Button ripple animation */
+@keyframes iguhit-ripple { to { transform: scale(4); opacity: 0; } }
+.iguhit-ripple-effect {
+    position: absolute; border-radius: 50%;
+    width: 10px; height: 10px;
+    background: rgba(255,255,255,0.42);
+    transform: scale(0);
+    animation: iguhit-ripple 0.42s linear;
+    pointer-events: none;
+}
+button { overflow: hidden; position: relative; }
+
+/* Rulers */
+#ruler-corner {
+    position: absolute; top: 0; left: 0;
+    width: 20px; height: 20px;
+    background: #252525;
+    border-right: 1px solid #3e3e3e;
+    border-bottom: 1px solid #3e3e3e;
+    z-index: 200;
+}
+#ruler-h {
+    position: absolute; top: 0; left: 20px; right: 0; height: 20px;
+    background: #252525; border-bottom: 1px solid #3e3e3e;
+    overflow: hidden; z-index: 199;
+}
+#ruler-v {
+    position: absolute; top: 20px; left: 0; bottom: 0; width: 20px;
+    background: #252525; border-right: 1px solid #3e3e3e;
+    overflow: hidden; z-index: 199;
+}
+#ruler-h canvas, #ruler-v canvas { display: block; }
+.canvas-viewport-with-rulers { padding-top: 20px !important; padding-left: 20px !important; }
+
+/* Control bar contextual groups */
+.ctrl-ctx { display: none; }
+.ctrl-ctx.visible { display: flex; align-items: center; gap: 6px; }
+
+/* Corner link button */
+.corner-link-btn.active {
+    background: var(--color-accent) !important;
+    color: #000 !important;
+}
+.corner-radius-input { font-family: monospace; }
+
+/* Layer radio button (select-all) */
+.layer-radio {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--color-border-light);
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    margin-right: 2px;
+}
+.layer-radio:hover { border-color: var(--color-accent); }
+.layer-radio.selected {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+}
+.layer-radio.selected::after {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #000;
+}
+
+/* Smart guide SVG overlay */
+#smart-guide-svg {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: visible;
+}
+
+/* Step & Repeat section */
+#btn-step-repeat, #btn-repeat-last {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px;
+}
+
+/* Artboard tool label in control bar */
+#artboard-sel-name {
+    color: var(--color-accent);
+    font-weight: 600;
+    font-size: 11px;
 }

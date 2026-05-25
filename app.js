@@ -210,6 +210,12 @@ function setupPaperJS() {
     
     // Prevent Selection/Interaction on the artboardLayer
     artboardLayer.locked = true;
+
+    // Expose globals for enhancements.js
+    window.artboardLayer  = artboardLayer;
+    window.artboardRect   = artboardRect;
+    window.artboardShadow = artboardShadow;
+    window.gridGroup      = gridGroup;
     
     // Back to Drawing Layer
     drawLayer.activate();
@@ -612,11 +618,19 @@ function setupTools() {
         applyVirtualModifiers(event);
         const tool = state.activeToolName;
         
-        // Non-drawing tools (Hand, Zoom) work even when the active layer is locked
-        if (tool !== 'hand' && tool !== 'zoom') {
+        // Only block actual drawing tools when the active layer is locked.
+        // Selection, direct-select, artboard, hand, zoom always work.
+        const drawingTools = ['pen','pencil','rect','ellipse','line','type','eraser','rotate','shape-builder','blob-brush'];
+        if (drawingTools.includes(tool)) {
             if (paper.project.activeLayer.locked) {
-                alert("The active layer is locked! Please unlock it or select another layer to draw.");
-                return;
+                // Try to auto-recover: activate the first unlocked draw layer
+                const unlocked = paper.project.layers.find(l => !l.locked && l.name !== 'System Artboard');
+                if (unlocked) {
+                    unlocked.activate();
+                } else {
+                    alert("The active layer is locked! Please unlock it or select another layer to draw.");
+                    return;
+                }
             }
         }
         
@@ -624,6 +638,8 @@ function setupTools() {
             handleSelectMouseDown(event);
         } else if (tool === 'direct-select') {
             handleDirectSelectMouseDown(event);
+        } else if (tool === 'artboard') {
+            handleArtboardToolMouseDown(event);
         } else if (tool === 'pen') {
             handlePenMouseDown(event);
         } else if (tool === 'type') {
@@ -644,6 +660,8 @@ function setupTools() {
             handleZoomMouseDown(event);
         } else if (tool === 'rotate') {
             handleRotateMouseDown(event);
+        } else if (tool === 'shape-builder') {
+            handleShapeBuilderMouseDown(event);
         }
     };
     
@@ -655,6 +673,8 @@ function setupTools() {
             handleSelectMouseDrag(event);
         } else if (tool === 'direct-select') {
             handleDirectSelectMouseDrag(event);
+        } else if (tool === 'artboard') {
+            handleArtboardToolMouseDrag(event);
         } else if (tool === 'pen') {
             handlePenMouseDrag(event);
         } else if (tool === 'line') {
@@ -673,6 +693,8 @@ function setupTools() {
             handleZoomMouseDrag(event);
         } else if (tool === 'rotate') {
             handleRotateMouseDrag(event);
+        } else if (tool === 'shape-builder') {
+            handleShapeBuilderMouseDrag(event);
         }
     };
     
@@ -684,6 +706,8 @@ function setupTools() {
             handleSelectMouseUp(event);
         } else if (tool === 'direct-select') {
             handleDirectSelectMouseUp(event);
+        } else if (tool === 'artboard') {
+            handleArtboardToolMouseUp(event);
         } else if (tool === 'pen') {
             handlePenMouseUp(event);
         } else if (tool === 'line') {
@@ -702,6 +726,8 @@ function setupTools() {
             handleZoomMouseUp(event);
         } else if (tool === 'rotate') {
             handleRotateMouseUp(event);
+        } else if (tool === 'shape-builder') {
+            handleShapeBuilderMouseUp(event);
         }
     };
 }
@@ -1081,6 +1107,180 @@ function handleDirectSelectMouseUp(event) {
     }
 }
 
+// --- ARTBOARD TOOL (Shift+A) ---
+let _artboardToolSelectedAb = null;
+let _artboardDragStart      = null; // paper point where drag began
+let _artboardDragOrigin     = null; // original TL of artboard being dragged
+
+function handleArtboardToolMouseDown(event) {
+    window._selectedArtboard = null;
+    _artboardToolSelectedAb  = null;
+    _artboardDragStart       = event.point;
+
+    // Check secondary artboards first (non-isMain entries)
+    if (window.multiArtboards && window.multiArtboards.length > 0) {
+        for (const ab of window.multiArtboards) {
+            if (ab.isMain) continue;
+            const rect = ab.rect;
+            if (rect && rect.isInserted() && rect.bounds.contains(event.point)) {
+                window._selectedArtboard = ab;
+                _artboardToolSelectedAb  = ab;
+                _artboardDragOrigin      = rect.bounds.topLeft.clone();
+                // Highlight selected
+                artboardLayer.locked = false;
+                ab.rect.strokeColor = '#f17c22';
+                ab.rect.strokeWidth = 2;
+                artboardLayer.locked = true;
+                break;
+            }
+        }
+        // Unhighlight others
+        artboardLayer.locked = false;
+        window.multiArtboards.forEach(ab => {
+            if (ab !== window._selectedArtboard && !ab.isMain && ab.rect && ab.rect.isInserted()) {
+                ab.rect.strokeColor = '#555555';
+                ab.rect.strokeWidth = 1;
+            }
+        });
+        artboardLayer.locked = true;
+    }
+
+    // Check main artboard (always selectable)
+    if (!window._selectedArtboard && window.artboardRect) {
+        // Use the bounds directly — don't hit-test through the locked layer
+        const abBounds = window.artboardRect.bounds;
+        if (abBounds.contains(event.point)) {
+            window._selectedArtboard = 'main';
+            _artboardToolSelectedAb  = 'main';
+            _artboardDragOrigin      = abBounds.topLeft.clone();
+        }
+    }
+
+    // Update label
+    const lbl = document.getElementById('artboard-sel-name');
+    if (lbl) {
+        if (window._selectedArtboard === 'main') lbl.textContent = 'Main Artboard';
+        else if (window._selectedArtboard) {
+            const secondaries = window.multiArtboards ? window.multiArtboards.filter(a => !a.isMain) : [];
+            const idx = secondaries.indexOf(window._selectedArtboard);
+            lbl.textContent = 'Artboard ' + (idx + 2);
+        } else { lbl.textContent = 'None'; }
+    }
+
+    _syncArtboardInputsToSelected();
+
+    // Collect all draw-layer items currently inside the selected artboard
+    // so they can be moved together when dragging
+    window._artboardDragItems = [];
+    const sel = window._selectedArtboard;
+    const selBounds = sel === 'main'
+        ? (window.artboardRect ? window.artboardRect.bounds : null)
+        : (window._selectedArtboard && window._selectedArtboard.rect ? window._selectedArtboard.rect.bounds : null);
+    if (selBounds) {
+        paper.project.layers.forEach(layer => {
+            if (layer === artboardLayer) return;
+            if (layer.name === 'System Artboard') return;
+            layer.children.forEach(child => {
+                try {
+                    if (child.isInserted() && child.visible && child.bounds &&
+                        selBounds.contains(child.bounds)) {
+                        window._artboardDragItems.push(child);
+                    }
+                } catch(_) {}
+            });
+        });
+    }
+
+    paper.view.draw();
+}
+
+function handleArtboardToolMouseDrag(event) {
+    const sel = window._selectedArtboard;
+    if (!sel || !_artboardDragStart || !_artboardDragOrigin) return;
+
+    const delta = event.point.subtract(_artboardDragStart);
+    const newX  = _artboardDragOrigin.x + delta.x;
+    const newY  = _artboardDragOrigin.y + delta.y;
+
+    artboardLayer.locked = false;
+    artboardLayer.activate();
+
+    let dx = 0, dy = 0;
+
+    if (sel === 'main') {
+        const oldTL = window.artboardRect.bounds.topLeft;
+        dx = newX - oldTL.x;
+        dy = newY - oldTL.y;
+        if (window.artboardShadow) window.artboardShadow.translate(dx, dy);
+        if (window.artboardRect)   window.artboardRect.translate(dx, dy);
+        if (window.gridGroup)      window.gridGroup.translate(dx, dy);
+    } else if (sel.rect && sel.rect.isInserted()) {
+        const oldTL = sel.rect.bounds.topLeft;
+        dx = newX - oldTL.x;
+        dy = newY - oldTL.y;
+        if (sel.shadow && sel.shadow.isInserted()) sel.shadow.translate(dx, dy);
+        sel.rect.translate(dx, dy);
+        if (sel.grid && sel.grid.isInserted()) sel.grid.translate(dx, dy);
+        sel.bounds = sel.rect.bounds;
+    }
+
+    artboardLayer.locked = true;
+
+    // Move all draw-layer items that were inside this artboard at drag start
+    if ((dx !== 0 || dy !== 0) && window._artboardDragItems) {
+        window._artboardDragItems.forEach(item => {
+            try {
+                if (item.isInserted()) item.translate(dx, dy);
+            } catch(_) {}
+        });
+    }
+
+    const dl = window.drawLayer ||
+        paper.project.layers.find(l => !l.locked && l.name !== 'System Artboard');
+    if (dl) { dl.locked = false; dl.activate(); window.drawLayer = dl; }
+
+    paper.view.draw();
+}
+
+function handleArtboardToolMouseUp(event) {
+    if (window._selectedArtboard && _artboardDragStart) {
+        _syncArtboardInputsToSelected();
+        if (window.saveState) saveState();
+    }
+    _artboardDragStart  = null;
+    _artboardDragOrigin = null;
+}
+
+// Sync W/H control-bar inputs to whichever artboard is currently selected
+function _syncArtboardInputsToSelected() {
+    const sel = window._selectedArtboard;
+    if (!sel) return;
+
+    let w, h;
+    if (sel === 'main') {
+        w = state.artboardWidth;
+        h = state.artboardHeight;
+    } else if (sel.rect && sel.rect.isInserted()) {
+        w = sel.rect.bounds.width;
+        h = sel.rect.bounds.height;
+    } else { return; }
+
+    const unit = state.artboardUnit || 'px';
+    const ppi  = state.artboardResolution || 96;
+    function toDisplay(px) {
+        switch (unit) {
+            case 'in': return +(px / ppi).toFixed(3);
+            case 'cm': return +(px / (ppi / 2.54)).toFixed(2);
+            case 'mm': return +(px / (ppi / 25.4)).toFixed(1);
+            default:   return Math.round(px);
+        }
+    }
+    const wIn = document.getElementById('artboard-w-input');
+    const hIn = document.getElementById('artboard-h-input');
+    if (wIn) wIn.value = toDisplay(w);
+    if (hIn) hIn.value = toDisplay(h);
+}
+
 // --- PEN TOOL (P) ---
 function handlePenMouseDown(event) {
     if (!activePath) {
@@ -1136,20 +1336,40 @@ function finishActivePath() {
 // --- TYPE TOOL (T) ---
 function handleTypeMouseDown(event) {
     deselectAll();
+    
+    // Get font settings from control bar (injected by enhancement pack)
+    const fontFamilyEl = document.getElementById('ctrl-font-family');
+    const fontSizeEl = document.getElementById('ctrl-font-size');
+    const fontWeightEl = document.getElementById('ctrl-font-weight');
+    const fontStyleEl = document.getElementById('ctrl-font-style');
+    
+    const fontFamily = fontFamilyEl ? fontFamilyEl.value : 'Inter, sans-serif';
+    const fontSize = fontSizeEl ? (parseFloat(fontSizeEl.value) || 24) : 24;
+    const fontWeight = fontWeightEl ? fontWeightEl.value : '600';
+    const fontStyleVal = fontStyleEl ? fontStyleEl.value : 'normal';
+    
+    // Show a styled prompt dialog
     const textVal = prompt("Enter text:", "iGuhit Vector");
     if (textVal) {
         const textItem = new paper.PointText({
             point: event.point,
             content: textVal,
-            fontSize: 24,
-            fontFamily: 'Inter, system-ui, sans-serif',
-            fontWeight: '600'
+            fontSize: fontSize,
+            fontFamily: fontFamily,
+            fontWeight: fontWeight,
+            fontStyle: fontStyleVal
         });
         setupShapeStyles(textItem);
         textItem.selected = true;
         
+        // Store font data for re-sync
+        if (fontFamilyEl) textItem.fontFamily = fontFamily;
+        
         saveState();
         onSelectionChanged();
+        
+        // Sync font controls with new item
+        if (window.__syncTypeFontControls) window.__syncTypeFontControls(textItem);
     }
 }
 
@@ -1347,69 +1567,76 @@ function handlePencilMouseUp(event) {
 }
 
 // --- ERASER TOOL (Shift+E) ---
+let eraserPath = null; // dedicated eraser path reference to avoid activePath collision
+
 function handleEraserMouseDown(event) {
-    activePath = new paper.Path({
+    eraserPath = new paper.Path({
         strokeColor: '#777777',
         strokeWidth: 20,
         strokeCap: 'round',
         opacity: 0.5
     });
-    activePath.add(event.point);
+    eraserPath.add(event.point);
 }
 
 function handleEraserMouseDrag(event) {
-    if (activePath) {
-        activePath.add(event.point);
+    if (eraserPath) {
+        eraserPath.add(event.point);
     }
 }
 
 function handleEraserMouseUp(event) {
-    if (activePath) {
-        const eraserStroke = activePath;
-        eraserStroke.remove();
-        activePath = null;
+    if (!eraserPath) return;
+    
+    const eraserStroke = eraserPath;
+    eraserPath = null;
+    eraserStroke.remove();
+    
+    const drawItems = [...paper.project.activeLayer.children];
+    let changed = false;
+    
+    drawItems.forEach(item => {
+        if (!item || !item.isInserted()) return;
+        if (item.layer && item.layer.name === 'System Artboard') return;
         
-        const drawItems = [...paper.project.activeLayer.children];
-        let changed = false;
-        
-        drawItems.forEach(item => {
-            if (item.layer.name === 'System Artboard') return;
-            
-            if (item.bounds.intersects(eraserStroke.bounds)) {
-                if (item instanceof paper.Path && (item.closed || item.fillColor)) {
+        if (item.bounds && eraserStroke.bounds && item.bounds.intersects(eraserStroke.bounds)) {
+            if (item instanceof paper.Path && (item.closed || item.fillColor)) {
+                try {
+                    const pathOutline = item.subtract(eraserStroke);
+                    if (pathOutline && Math.abs((pathOutline.area || 0) - (item.area || 0)) > 1) {
+                        item.replaceWith(pathOutline);
+                        pathOutline.selected = true;
+                        changed = true;
+                    }
+                } catch(err) {
                     try {
-                        const pathOutline = item.subtract(eraserStroke);
-                        if (pathOutline && pathOutline.area !== item.area) {
-                            item.replaceWith(pathOutline);
-                            pathOutline.selected = true;
-                            changed = true;
-                        }
-                    } catch(err) {
-                        if (item.contains(eraserStroke.position)) {
+                        if (item.isInserted() && eraserStroke.contains(item.position)) {
                             item.remove();
                             changed = true;
                         }
-                    }
-                } else if (item instanceof paper.Path) {
+                    } catch(e2) {}
+                }
+            } else if (item instanceof paper.Path) {
+                try {
                     const intersections = item.getIntersections(eraserStroke);
                     if (intersections.length > 0) {
                         item.remove();
                         changed = true;
                     }
-                } else if (item instanceof paper.PointText) {
-                    item.remove();
-                    changed = true;
-                }
+                } catch(e) {}
+            } else if (item instanceof paper.PointText) {
+                item.remove();
+                changed = true;
             }
-        });
-        
-        if (changed) {
-            saveState();
-        } else {
-            onSelectionChanged();
         }
-        paper.view.draw();
+    });
+    
+    if (changed) {
+        saveState();
+    } else {
+        onSelectionChanged();
     }
+    paper.view.draw();
 }
 
 // --- HAND TOOL / PAN (H) ---
@@ -1722,6 +1949,81 @@ function updateArtboardSize(width, height) {
     }
 }
 
+// Resize a secondary (multi) artboard selected with the Artboard Tool
+function resizeSelectedSecondaryArtboard(newW, newH) {
+    const ab = window._selectedArtboard;
+    if (!ab || !ab.rect || !ab.rect.isInserted()) return;
+
+    const oldBounds = ab.rect.bounds;
+    const w = (newW !== null && newW > 0) ? newW : oldBounds.width;
+    const h = (newH !== null && newH > 0) ? newH : oldBounds.height;
+    const ox = oldBounds.x;
+    const oy = oldBounds.y;
+
+    // Unlock artboard layer temporarily so we can add/remove items from it
+    const wasLocked = window.artboardLayer ? window.artboardLayer.locked : false;
+    if (window.artboardLayer) {
+        window.artboardLayer.locked = false;
+        window.artboardLayer.activate();
+    }
+
+    // Remove old visual parts cleanly
+    try { if (ab.shadow && ab.shadow.isInserted()) ab.shadow.remove(); } catch (_) {}
+    try { if (ab.rect   && ab.rect.isInserted())   ab.rect.remove();   } catch (_) {}
+    try { if (ab.grid   && ab.grid.isInserted())   ab.grid.remove();   } catch (_) {}
+    try { if (ab.label  && ab.label.isInserted())  ab.label.remove();  } catch (_) {}
+
+    // Rebuild artboard at same top-left origin, new size
+    const shadow = new paper.Path.Rectangle({
+        point: [ox + 4, oy + 4],
+        size: [w, h],
+        fillColor: '#121212',
+        opacity: 0.4
+    });
+    const rect = new paper.Path.Rectangle({
+        point: [ox, oy],
+        size: [w, h],
+        fillColor: '#ffffff',
+        strokeColor: '#555555',
+        strokeWidth: 1
+    });
+    rect.name = 'artboardRect';
+
+    // Rebuild grid lines
+    const grid = new paper.Group();
+    const gs = 50;
+    for (let x = ox + gs; x < ox + w; x += gs) {
+        grid.addChild(new paper.Path.Line({
+            from: [x, oy], to: [x, oy + h],
+            strokeColor: '#f0f0f0', strokeWidth: 0.5
+        }));
+    }
+    for (let y = oy + gs; y < oy + h; y += gs) {
+        grid.addChild(new paper.Path.Line({
+            from: [ox, y], to: [ox + w, y],
+            strokeColor: '#f0f0f0', strokeWidth: 0.5
+        }));
+    }
+
+    // Update the tracked artboard object
+    ab.shadow = shadow;
+    ab.rect   = rect;
+    ab.grid   = grid;
+    ab.bounds = rect.bounds;
+
+    // Lock artboard layer again and restore draw layer as active
+    if (window.artboardLayer) window.artboardLayer.locked = true;
+    const dl = window.drawLayer ||
+        paper.project.layers.find(l => !l.locked && l.name !== 'System Artboard');
+    if (dl) { dl.locked = false; dl.activate(); window.drawLayer = dl; }
+
+    // Sync inputs to new size
+    _syncArtboardInputsToSelected();
+
+    paper.view.draw();
+    autoSaveProject();
+}
+
 function setupShapeStyles(path) {
     if (state.fillColorNone) {
         path.fillColor = null;
@@ -1838,10 +2140,30 @@ function syncPropertiesFromSelection() {
     if (item.strokeJoin) {
         document.getElementById('prop-stroke-join').value = item.strokeJoin;
     }
+    if (item.dashArray && item.dashArray.length > 0) {
+        const styleEl = document.getElementById('stroke-style');
+        if (styleEl) styleEl.value = 'dashed';
+    } else {
+        const styleEl = document.getElementById('stroke-style');
+        if (styleEl) styleEl.value = 'solid';
+    }
+
+    if (item.data) {
+        const startEl = document.getElementById('stroke-arrow-start');
+        const endEl   = document.getElementById('stroke-arrow-end');
+        if (startEl) startEl.value = item.data.arrowStart || 'none';
+        if (endEl)   endEl.value   = item.data.arrowEnd   || 'none';
+    }
+
     if (item.dashArray) {
         document.getElementById('prop-dash-array').value = item.dashArray.join(', ');
     } else {
         document.getElementById('prop-dash-array').value = '';
+    }
+    
+    // Sync font controls for PointText items
+    if (item instanceof paper.PointText && window.__syncTypeFontControls) {
+        window.__syncTypeFontControls(item);
     }
 }
 
@@ -2169,49 +2491,57 @@ function setupUIEventListeners() {
     });
 
     const handleArtboardWChange = (val) => {
-        if (isNaN(val) || val <= 0) {
-            syncArtboardInputs();
-            return;
-        }
+        if (isNaN(val) || val <= 0) { syncArtboardInputs(); return; }
         const newWPixels = convertUnitToPixels(val, state.artboardUnit, state.artboardResolution);
-        if (newWPixels !== state.artboardWidth) {
-            updateArtboardSize(newWPixels, state.artboardHeight);
+        const sel = window._selectedArtboard;
+        if (state.activeToolName === 'artboard' && sel) {
+            if (sel === 'main') {
+                // Resize the main artboard
+                updateArtboardSize(newWPixels, state.artboardHeight);
+            } else if (sel.rect && !sel.isMain) {
+                // Resize only the selected secondary artboard
+                resizeSelectedSecondaryArtboard(newWPixels, null);
+            } else {
+                // isMain entry = main artboard reference
+                updateArtboardSize(newWPixels, state.artboardHeight);
+            }
+        } else {
+            if (newWPixels !== state.artboardWidth) updateArtboardSize(newWPixels, state.artboardHeight);
         }
     };
 
     document.getElementById('artboard-w-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const val = parseFloat(e.target.value);
-            handleArtboardWChange(val);
-            e.target.blur();
-        }
+        if (e.key === 'Enter') { const val = parseFloat(e.target.value); handleArtboardWChange(val); e.target.blur(); }
     });
     document.getElementById('artboard-w-input').addEventListener('change', (e) => {
-        const val = parseFloat(e.target.value);
-        handleArtboardWChange(val);
+        const val = parseFloat(e.target.value); handleArtboardWChange(val);
     });
 
     const handleArtboardHChange = (val) => {
-        if (isNaN(val) || val <= 0) {
-            syncArtboardInputs();
-            return;
-        }
+        if (isNaN(val) || val <= 0) { syncArtboardInputs(); return; }
         const newHPixels = convertUnitToPixels(val, state.artboardUnit, state.artboardResolution);
-        if (newHPixels !== state.artboardHeight) {
-            updateArtboardSize(state.artboardWidth, newHPixels);
+        const sel = window._selectedArtboard;
+        if (state.activeToolName === 'artboard' && sel) {
+            if (sel === 'main') {
+                // Resize the main artboard
+                updateArtboardSize(state.artboardWidth, newHPixels);
+            } else if (sel.rect && !sel.isMain) {
+                // Resize only the selected secondary artboard
+                resizeSelectedSecondaryArtboard(null, newHPixels);
+            } else {
+                // isMain entry = main artboard reference
+                updateArtboardSize(state.artboardWidth, newHPixels);
+            }
+        } else {
+            if (newHPixels !== state.artboardHeight) updateArtboardSize(state.artboardWidth, newHPixels);
         }
     };
 
     document.getElementById('artboard-h-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const val = parseFloat(e.target.value);
-            handleArtboardHChange(val);
-            e.target.blur();
-        }
+        if (e.key === 'Enter') { const val = parseFloat(e.target.value); handleArtboardHChange(val); e.target.blur(); }
     });
     document.getElementById('artboard-h-input').addEventListener('change', (e) => {
-        const val = parseFloat(e.target.value);
-        handleArtboardHChange(val);
+        const val = parseFloat(e.target.value); handleArtboardHChange(val);
     });
 
     // --- Menu File actions ---
@@ -2965,13 +3295,37 @@ function alignSelection(type) {
     
     let bounds = null;
     
-    // If only one item is selected, we MUST align relative to the Artboard
-    if (selection.length === 1 || alignTo === 'artboard') {
-        if (artboardRect) {
-            bounds = artboardRect.bounds.clone();
-        } else {
-            bounds = paper.view.bounds.clone();
+    // Determine reference artboard bounds:
+    // 1. If artboard tool active and an artboard is selected → use that
+    // 2. If alignTo === 'artboard' → find which artboard the items are inside
+    // 3. If single item selected → use its containing artboard
+    // 4. Fall back to main artboard rect
+    function getContainingArtboard(item) {
+        // Check secondary artboards
+        if (window.multiArtboards) {
+            for (const ab of window.multiArtboards) {
+                if (ab.isMain) continue;
+                if (ab.rect && ab.rect.isInserted() && ab.rect.bounds.intersects(item.bounds)) {
+                    return ab.rect.bounds.clone();
+                }
+            }
         }
+        // Fall back to main artboard
+        if (window.artboardRect) return window.artboardRect.bounds.clone();
+        return paper.view.bounds.clone();
+    }
+
+    if (selection.length === 1 || alignTo === 'artboard') {
+        // Use selected artboard from artboard tool if active
+        if (state.activeToolName === 'artboard' && window._selectedArtboard) {
+            if (window._selectedArtboard === 'main' && window.artboardRect) {
+                bounds = window.artboardRect.bounds.clone();
+            } else if (window._selectedArtboard.rect && window._selectedArtboard.rect.isInserted()) {
+                bounds = window._selectedArtboard.rect.bounds.clone();
+            }
+        }
+        // Otherwise detect from first item's position
+        if (!bounds) bounds = getContainingArtboard(selection[0]);
         
         selection.forEach(item => {
             switch (type) {
@@ -3065,8 +3419,10 @@ function setupKeyboardShortcuts() {
         // Shortcuts mapping
         if (key === 'v') {
             document.getElementById('tool-select').click();
-        } else if (key === 'a') {
+        } else if (key === 'a' && !e.shiftKey) {
             document.getElementById('tool-direct-select').click();
+        } else if (key === 'a' && e.shiftKey) {
+            document.getElementById('tool-artboard').click();
         } else if (key === 'p') {
             document.getElementById('tool-pen').click();
         } else if (key === 't') {
@@ -3094,7 +3450,25 @@ function setupKeyboardShortcuts() {
         }
         
         if (e.key === 'Delete' || e.key === 'Backspace') {
-            deleteSelectedItems();
+            if (state.activeToolName === 'artboard') {
+                // Delete selected artboard
+                if (_artboardToolSelectedAb && _artboardToolSelectedAb !== 'main' && window.multiArtboards) {
+                    if (confirm('Delete this artboard?')) {
+                        try { _artboardToolSelectedAb.group?.remove(); } catch(_) {}
+                        try { _artboardToolSelectedAb.rect?.remove(); } catch(_) {}
+                        try { _artboardToolSelectedAb.shadow?.remove(); } catch(_) {}
+                        const idx = window.multiArtboards.indexOf(_artboardToolSelectedAb);
+                        if (idx !== -1) window.multiArtboards.splice(idx, 1);
+                        _artboardToolSelectedAb = null;
+                        const lbl = document.getElementById('artboard-sel-name');
+                        if (lbl) lbl.textContent = 'None';
+                        paper.view.draw();
+                        if (window.saveState) saveState();
+                    }
+                }
+            } else {
+                deleteSelectedItems();
+            }
         }
         
         if (e.ctrlKey || e.metaKey || state.virtualCtrl) {
@@ -3191,3 +3565,767 @@ function makeElementDraggable(element, handle) {
         document.onmousemove = null;
     }
 }
+
+
+// =====================================================
+// SHAPE BUILDER TOOL RESTORED
+// =====================================================
+
+let shapeBuilderPreview = null;
+
+function getShapeBuilderItems() {
+    return getSelectedDrawItems().filter(item =>
+        item instanceof paper.PathItem
+    );
+}
+
+function clearShapeBuilderPreview() {
+    if (shapeBuilderPreview) {
+        shapeBuilderPreview.remove();
+        shapeBuilderPreview = null;
+    }
+}
+
+function handleShapeBuilderMouseDown(event) {
+    const items = getShapeBuilderItems();
+
+    if (items.length < 2) {
+        alert('Select at least 2 overlapping shapes.');
+        return;
+    }
+
+    let result = items[0];
+
+    for (let i = 1; i < items.length; i++) {
+        try {
+            result = event.modifiers.alt
+                ? result.subtract(items[i])
+                : result.unite(items[i]);
+        } catch (err) {
+            console.warn(err);
+        }
+    }
+
+    items.forEach(item => {
+        if (item !== result) {
+            item.remove();
+        }
+    });
+
+    result.selected = true;
+
+    saveState();
+    updateLayersUI();
+    paper.view.draw();
+}
+
+function handleShapeBuilderMouseDrag(event) {}
+
+function handleShapeBuilderMouseUp(event) {
+    clearShapeBuilderPreview();
+}
+
+
+
+// =====================================================
+// DRAG & DROP IMPORT
+// =====================================================
+
+document.addEventListener('dragover', function(e) {
+    e.preventDefault();
+});
+
+document.addEventListener('drop', function(e) {
+    e.preventDefault();
+
+    const file = e.dataTransfer.files[0];
+
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function(evt) {
+        const content = evt.target.result;
+
+        if (file.name.endsWith('.svg')) {
+            paper.project.importSVG(content, function(item) {
+                item.position = paper.view.center;
+                saveState();
+                paper.view.draw();
+            });
+        } else if (
+            file.name.endsWith('.png') ||
+            file.name.endsWith('.jpg') ||
+            file.name.endsWith('.jpeg')
+        ) {
+            const raster = new paper.Raster({
+                source: content,
+                position: paper.view.center
+            });
+
+            raster.onLoad = function() {
+                paper.view.draw();
+            };
+        }
+    };
+
+    reader.readAsDataURL(file);
+
+    if (file.name.endsWith('.svg')) {
+        reader.readAsText(file);
+    }
+});
+
+
+
+// =====================================================
+// MULTI ARTBOARD SYSTEM
+// =====================================================
+
+let artboards = [];
+window.multiArtboards = artboards;
+
+// createNewArtboard is now an alias — see addNewArtboardProper below
+function createNewArtboard() { addNewArtboardProper(); }
+
+
+
+// =====================================================
+// CREATE CROPMARKS
+// =====================================================
+
+function createCropmarks() {
+    const items = getSelectedDrawItems();
+    if (!items.length) { alert('Select an object first to generate crop marks.'); return; }
+    const item   = items[0];
+    const bounds = item.bounds;
+
+    // Adobe Illustrator cropmark spec:
+    //   - 0.25pt stroke, pure black (Registration/All-Plates)
+    //   - 8.5pt gap from object edge
+    //   - 14pt mark length
+    const gap = 8.5;
+    const len = 14;
+    const sw  = 0.72; // 0.25pt @ 72dpi
+    const L = bounds.left,  R = bounds.right;
+    const T = bounds.top,   B = bounds.bottom;
+
+    function mkLine(fx, fy, tx, ty) {
+        return new paper.Path.Line({
+            from: [fx, fy], to: [tx, ty],
+            strokeColor: new paper.Color(0, 0, 0),
+            strokeWidth: sw,
+            fillColor: null
+        });
+    }
+
+    // Activate the current draw layer so cropmarks go into it (not artboard layer)
+    if (window.drawLayer) drawLayer.activate();
+
+    const grp = new paper.Group([
+        // Top-left corner: horizontal + vertical
+        mkLine(L - gap - len, T,       L - gap,       T),
+        mkLine(L,             T - gap - len, L,        T - gap),
+        // Top-right corner
+        mkLine(R + gap,       T,       R + gap + len,  T),
+        mkLine(R,             T - gap - len, R,         T - gap),
+        // Bottom-left corner
+        mkLine(L - gap - len, B,       L - gap,        B),
+        mkLine(L,             B + gap, L,              B + gap + len),
+        // Bottom-right corner
+        mkLine(R + gap,       B,       R + gap + len,  B),
+        mkLine(R,             B + gap, R,              B + gap + len)
+    ]);
+
+    grp.name = 'Crop Marks';
+    grp.data = { isCropMarkGroup: true };
+    grp.selected = true;
+
+    saveState();
+    updateLayersUI();
+    paper.view.draw();
+}
+
+document.getElementById('btn-create-cropmarks')?.addEventListener('click', createCropmarks);
+
+
+
+// =====================================================
+// TRUE MULTI ARTBOARD SYSTEM
+// =====================================================
+
+window.multiArtboards = [];
+
+function createArtboardObject(x, y, width, height) {
+
+    const group = new paper.Group();
+
+    const shadow = new paper.Path.Rectangle({
+        point: [x + 4, y + 4],
+        size: [width, height],
+        fillColor: '#111',
+        opacity: 0.25
+    });
+
+    const rect = new paper.Path.Rectangle({
+        point: [x, y],
+        size: [width, height],
+        fillColor: '#ffffff',
+        strokeColor: '#666',
+        strokeWidth: 1
+    });
+
+    const grid = new paper.Group();
+
+    const spacing = 50;
+
+    for (let gx = x + spacing; gx < x + width; gx += spacing) {
+        grid.addChild(new paper.Path.Line({
+            from: [gx, y],
+            to: [gx, y + height],
+            strokeColor: '#f0f0f0',
+            strokeWidth: 1
+        }));
+    }
+
+    for (let gy = y + spacing; gy < y + height; gy += spacing) {
+        grid.addChild(new paper.Path.Line({
+            from: [x, gy],
+            to: [x + width, gy],
+            strokeColor: '#f0f0f0',
+            strokeWidth: 1
+        }));
+    }
+
+    group.addChild(shadow);
+    group.addChild(rect);
+    group.addChild(grid);
+
+    group.locked = true;
+    group.guide = true;
+    group.data.isArtboard = true;
+
+    return {
+        group,
+        rect,
+        shadow,
+        grid
+    };
+}
+
+function addNewArtboardProper() {
+    // Always unlock artboard layer first so we can add items to it
+    artboardLayer.locked = false;
+    artboardLayer.activate();
+
+    // ── Helper: robustly restore draw layer as active ──
+    function restoreDrawLayer() {
+        artboardLayer.locked = true;
+        // Find the draw layer by reference first, then by name
+        const dl = window.drawLayer || paper.project.layers.find(l => !l.locked && l.name !== 'System Artboard');
+        if (dl) {
+            dl.locked = false;
+            dl.activate();
+            window.drawLayer = dl;
+        }
+    }
+
+    // ── First click: replace the initial main artboard instead of overlapping it ──
+    if (window.multiArtboards.length === 0) {
+        // Remove the current main artboard visuals
+        if (window.artboardShadow && window.artboardShadow.isInserted()) window.artboardShadow.remove();
+        if (window.artboardRect   && window.artboardRect.isInserted())   window.artboardRect.remove();
+        if (window.gridGroup      && window.gridGroup.isInserted())      window.gridGroup.remove();
+
+        // Re-create the main artboard at its canonical position (200, 150)
+        window.artboardShadow = new paper.Path.Rectangle({
+            point: [204, 154],
+            size: [state.artboardWidth, state.artboardHeight],
+            fillColor: '#121212', opacity: 0.4
+        });
+        window.artboardShadow.name = 'artboardShadow';
+
+        window.artboardRect = new paper.Path.Rectangle({
+            point: [200, 150],
+            size: [state.artboardWidth, state.artboardHeight],
+            fillColor: state.artboardBgColor || '#ffffff',
+            strokeColor: '#555555', strokeWidth: 1
+        });
+        window.artboardRect.name = 'artboardRect';
+
+        // Rebuild grid
+        window.gridGroup = new paper.Group();
+        window.gridGroup.name = 'gridGroup';
+        const gs = 50;
+        for (let x = 200 + gs; x < 200 + state.artboardWidth; x += gs) {
+            window.gridGroup.addChild(new paper.Path.Line({ from: [x, 150], to: [x, 150 + state.artboardHeight], strokeColor: '#f0f0f0', strokeWidth: 1 }));
+        }
+        for (let y = 150 + gs; y < 150 + state.artboardHeight; y += gs) {
+            window.gridGroup.addChild(new paper.Path.Line({ from: [200, y], to: [200 + state.artboardWidth, y], strokeColor: '#f0f0f0', strokeWidth: 1 }));
+        }
+
+        // Push as first entry (isMain flag so layout skips it)
+        window.multiArtboards.push({
+            rect:   window.artboardRect,
+            shadow: window.artboardShadow,
+            grid:   window.gridGroup,
+            isMain: true
+        });
+
+        restoreDrawLayer();
+        paper.project.deselectAll();
+        paper.view.draw();
+        autoSaveProject();
+        return;
+    }
+
+    // ── Subsequent clicks: place new artboard to the right / below ──
+    const extraCount = window.multiArtboards.filter(a => !a.isMain).length;
+    const cols    = 3;
+    const col     = extraCount % cols;
+    const row     = Math.floor(extraCount / cols);
+    const spacingX = 80;
+    const spacingY = 100;
+    const x = 200 + (col + 1) * (state.artboardWidth + spacingX);
+    const y = 150 + row       * (state.artboardHeight + spacingY);
+
+    const artboard = createArtboardObject(x, y, state.artboardWidth, state.artboardHeight);
+    artboard.bounds = artboard.rect.bounds;
+    window.multiArtboards.push(artboard);
+
+    restoreDrawLayer();
+    paper.project.deselectAll();
+    paper.view.draw();
+    autoSaveProject();
+}
+
+const artboardBtn = document.getElementById('btn-new-artboard');
+
+if (artboardBtn) {
+    artboardBtn.onclick = addNewArtboardProper;
+}
+
+
+// =====================================================
+// EXPORT MULTI ARTBOARD PDF — Pure-JS Raw Vector PDF
+// Writes real PDF path operators (m l c h S f etc.)
+// directly from Paper.js path data. No external library
+// beyond jsPDF for the file wrapper. Opens in Illustrator
+// as fully editable vector objects.
+// =====================================================
+
+function exportAllArtboardsPDF() {
+    // ── Collect artboards ──────────────────────────────
+    const boards = [];
+    if (window.artboardRect && window.artboardRect.isInserted()) {
+        boards.push({ rect: window.artboardRect, name: 'Artboard 1' });
+    }
+    if (window.multiArtboards && window.multiArtboards.length > 0) {
+        window.multiArtboards.forEach((ab, i) => {
+            if (ab.isMain) return;
+            if (ab.rect && ab.rect.isInserted())
+                boards.push({ rect: ab.rect, name: 'Artboard ' + (i + 2) });
+        });
+    }
+    if (!boards.length) { alert('No artboard found.'); return; }
+
+    // ── Colour helpers ─────────────────────────────────
+    function paperColorToRGB(c) {
+        if (!c) return null;
+        try {
+            const rgb = c.convert('rgb');
+            return [
+                Math.max(0, Math.min(1, rgb.red   || 0)),
+                Math.max(0, Math.min(1, rgb.green  || 0)),
+                Math.max(0, Math.min(1, rgb.blue   || 0))
+            ];
+        } catch (_) { return [0, 0, 0]; }
+    }
+    function r3(n) { return +n.toFixed(4); }
+
+    // ── PDF coordinate transform ───────────────────────
+    // PDF origin is bottom-left; Paper.js origin is top-left.
+    // We flip Y per page: pdfY = pageH - paperY + offsetY
+    function tx(px, ox) { return r3(px - ox); }
+    function ty(py, oy, ph) { return r3(ph - (py - oy)); }
+
+    // ── Convert one Paper.js item to PDF content stream ops ──
+    function itemToOps(item, ox, oy, ph) {
+        const ops = [];
+
+        if (!item.visible || item.opacity === 0) return ops;
+
+        const opacity = item.opacity != null ? item.opacity : 1;
+        if (opacity < 1) ops.push(`q\n/GS${Math.round(opacity * 100)} gs`);
+
+        if (item instanceof paper.Path || item instanceof paper.CompoundPath) {
+            const paths = item instanceof paper.CompoundPath
+                ? item.children : [item];
+
+            // Build path data
+            let pd = '';
+            for (const path of paths) {
+                if (!path.segments || !path.segments.length) continue;
+                const segs = path.segments;
+                // Move to first point
+                const fp = segs[0].point;
+                pd += `${tx(fp.x, ox)} ${ty(fp.y, oy, ph)} m\n`;
+
+                for (let s = 1; s < segs.length; s++) {
+                    const prev = segs[s - 1];
+                    const curr = segs[s];
+                    const ho   = prev.handleOut;
+                    const hi   = curr.handleIn;
+                    if ((ho && (ho.x !== 0 || ho.y !== 0)) ||
+                        (hi && (hi.x !== 0 || hi.y !== 0))) {
+                        // Cubic Bézier
+                        const c1x = tx(prev.point.x + (ho ? ho.x : 0), ox);
+                        const c1y = ty(prev.point.y + (ho ? ho.y : 0), oy, ph);
+                        const c2x = tx(curr.point.x + (hi ? hi.x : 0), ox);
+                        const c2y = ty(curr.point.y + (hi ? hi.y : 0), oy, ph);
+                        const ex  = tx(curr.point.x, ox);
+                        const ey  = ty(curr.point.y, oy, ph);
+                        pd += `${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey} c\n`;
+                    } else {
+                        pd += `${tx(curr.point.x, ox)} ${ty(curr.point.y, oy, ph)} l\n`;
+                    }
+                }
+
+                // Close segment with curve back to start if closed
+                if (path.closed && segs.length > 1) {
+                    const last = segs[segs.length - 1];
+                    const first2 = segs[0];
+                    const ho = last.handleOut;
+                    const hi = first2.handleIn;
+                    if ((ho && (ho.x !== 0 || ho.y !== 0)) ||
+                        (hi && (hi.x !== 0 || hi.y !== 0))) {
+                        const c1x = tx(last.point.x + (ho ? ho.x : 0), ox);
+                        const c1y = ty(last.point.y + (ho ? ho.y : 0), oy, ph);
+                        const c2x = tx(first2.point.x + (hi ? hi.x : 0), ox);
+                        const c2y = ty(first2.point.y + (hi ? hi.y : 0), oy, ph);
+                        const ex  = tx(first2.point.x, ox);
+                        const ey  = ty(first2.point.y, oy, ph);
+                        pd += `${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey} c\n`;
+                    }
+                    pd += 'h\n'; // close path
+                }
+            }
+
+            if (!pd.trim()) { if (opacity < 1) ops.push('Q'); return ops; }
+
+            // Graphics state: fill + stroke
+            const fill   = paperColorToRGB(item.fillColor);
+            const stroke = paperColorToRGB(item.strokeColor);
+            const sw     = item.strokeWidth || 0;
+
+            ops.push(pd.trim());
+
+            if (fill && stroke && sw > 0) {
+                ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+                ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
+                ops.push(`${r3(sw)} w`);
+                // Dash array
+                if (item.dashArray && item.dashArray.length) {
+                    ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                }
+                ops.push(item.closed !== false ? 'B' : 'B');
+            } else if (fill) {
+                ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+                ops.push('f');
+            } else if (stroke && sw > 0) {
+                ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
+                ops.push(`${r3(sw)} w`);
+                if (item.dashArray && item.dashArray.length) {
+                    ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                }
+                ops.push('S');
+            } else {
+                ops.push('n'); // no-op, just clear path
+            }
+
+        } else if (item instanceof paper.PointText) {
+            // Text object — output as PDF text operator
+            const fill = paperColorToRGB(item.fillColor) || [0, 0, 0];
+            const fs   = item.fontSize || 12;
+            const x    = tx(item.point.x, ox);
+            const y    = ty(item.point.y, oy, ph);
+            // Escape special PDF string chars
+            const safe = (item.content || '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+            ops.push(`BT`);
+            ops.push(`/F1 ${r3(fs)} Tf`);
+            ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+            ops.push(`${x} ${y} Td`);
+            ops.push(`(${safe}) Tj`);
+            ops.push(`ET`);
+
+        } else if (item instanceof paper.Group) {
+            // Recurse into group
+            ops.push('q');
+            item.children.forEach(child => {
+                ops.push(...itemToOps(child, ox, oy, ph));
+            });
+            ops.push('Q');
+        }
+
+        if (opacity < 1) ops.push('Q');
+        return ops;
+    }
+
+    // ── Build raw PDF bytes ────────────────────────────
+    // We write a minimal but spec-compliant PDF manually.
+    // Structure: header, objects (pages, content streams), xref, trailer.
+
+    const pdfParts = []; // array of strings/Uint8Arrays
+    let offset = 0;
+    const offsets = [];
+
+    function w(str) {
+        pdfParts.push(str);
+        offset += str.length;
+    }
+
+    // Write header
+    w('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'); // magic bytes signal binary content
+
+    // Object counter (1-based)
+    let objNum = 0;
+    function nextObj() { return ++objNum; }
+
+    const catNum   = nextObj(); // 1 - catalog
+    const pagesNum = nextObj(); // 2 - pages dict
+    const fontNum  = nextObj(); // 3 - font (Helvetica)
+
+    // We'll fill page object numbers after we know how many pages
+    const pageNums = boards.map(() => nextObj());
+
+    // Content stream object numbers
+    const contentNums = boards.map(() => nextObj());
+
+    // Write font object
+    function writeObj(num, content) {
+        offsets[num] = offset;
+        w(`${num} 0 obj\n${content}\nendobj\n`);
+    }
+
+    // ── Per-page content streams ──────────────────────
+    const contentStreams = [];
+    for (let i = 0; i < boards.length; i++) {
+        const bounds = boards[i].rect.bounds;
+        const W = bounds.width, H = bounds.height;
+        const ox = bounds.x,    oy = bounds.y;
+
+        const ops = [];
+        // White page background
+        ops.push('q');
+        ops.push('1 1 1 rg');
+        ops.push(`0 0 ${r3(W)} ${r3(H)} re`);
+        ops.push('f');
+        ops.push('Q');
+
+        // Draw all items from draw layers
+        paper.project.layers.forEach(layer => {
+            if (layer === window.artboardLayer) return;
+            if (layer.name === 'System Artboard') return;
+            layer.children.forEach(child => {
+                if (!child.isInserted() || !child.visible) return;
+                if (child.bounds && child.bounds.intersects(bounds)) {
+                    ops.push('q');
+                    ops.push(...itemToOps(child, ox, oy, H));
+                    ops.push('Q');
+                }
+            });
+        });
+
+        contentStreams.push(ops.join('\n'));
+    }
+
+    // ── Write objects ─────────────────────────────────
+
+    // Catalog
+    writeObj(catNum,
+        `<< /Type /Catalog\n   /Pages ${pagesNum} 0 R\n>>`
+    );
+
+    // Pages (parent)
+    const kidsStr = pageNums.map(n => `${n} 0 R`).join(' ');
+    writeObj(pagesNum,
+        `<< /Type /Pages\n   /Kids [${kidsStr}]\n   /Count ${boards.length}\n>>`
+    );
+
+    // Font (Helvetica — standard PDF font, always available)
+    writeObj(fontNum,
+        `<< /Type /Font\n   /Subtype /Type1\n   /BaseFont /Helvetica\n   /Encoding /WinAnsiEncoding\n>>`
+    );
+
+    // Write each page + its content stream
+    for (let i = 0; i < boards.length; i++) {
+        const bounds = boards[i].rect.bounds;
+        const W = r3(bounds.width), H = r3(bounds.height);
+        const cNum = contentNums[i];
+        const pNum = pageNums[i];
+        const stream = contentStreams[i];
+        const streamBytes = new TextEncoder().encode(stream);
+        const slen = streamBytes.length;
+
+        // Page object
+        writeObj(pNum,
+            `<< /Type /Page\n   /Parent ${pagesNum} 0 R\n` +
+            `   /MediaBox [0 0 ${W} ${H}]\n` +
+            `   /Contents ${cNum} 0 R\n` +
+            `   /Resources << /Font << /F1 ${fontNum} 0 R >> >>\n>>`
+        );
+
+        // Content stream object
+        offsets[cNum] = offset;
+        w(`${cNum} 0 obj\n<< /Length ${slen} >>\nstream\n`);
+        w(stream);
+        w('\nendstream\nendobj\n');
+    }
+
+    // ── Cross-reference table ─────────────────────────
+    const xrefOffset = offset;
+    const totalObjs = objNum + 1; // +1 for object 0
+
+    let xref = `xref\n0 ${totalObjs}\n`;
+    xref += `0000000000 65535 f \n`; // object 0 (free)
+    for (let n = 1; n <= objNum; n++) {
+        const off = offsets[n] || 0;
+        xref += `${String(off).padStart(10, '0')} 00000 n \n`;
+    }
+    w(xref);
+
+    // ── Trailer ───────────────────────────────────────
+    w(`trailer\n<< /Size ${totalObjs}\n   /Root ${catNum} 0 R\n>>\n`);
+    w(`startxref\n${xrefOffset}\n%%EOF\n`);
+
+    // ── Assemble and download ─────────────────────────
+    const fullPDF = pdfParts.join('');
+    const bytes   = new Uint8Array(fullPDF.length);
+    for (let i = 0; i < fullPDF.length; i++) bytes[i] = fullPDF.charCodeAt(i) & 0xff;
+
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), {
+        href: url, download: 'iGuhit-export.pdf'
+    });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+// High-res raster fallback (kept for reference, not used by main export)
+async function addHighResImagePage(pdf, bounds) {
+    const W = Math.round(bounds.width);
+    const H = Math.round(bounds.height);
+    const DPR = 4;
+    const abVis = window.artboardLayer?.visible ?? true;
+    if (window.artboardLayer) window.artboardLayer.visible = false;
+    paper.view.draw();
+    const zoom = paper.view.zoom, deviceDPR = window.devicePixelRatio || 1;
+    const vp = paper.view.projectToView(bounds.topLeft);
+    const tc = document.createElement('canvas');
+    tc.width = W * DPR; tc.height = H * DPR;
+    const ctx = tc.getContext('2d');
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tc.width, tc.height);
+    ctx.scale(DPR, DPR);
+    ctx.drawImage(paper.view.element,
+        Math.round(vp.x * deviceDPR), Math.round(vp.y * deviceDPR),
+        Math.round(bounds.width * zoom * deviceDPR), Math.round(bounds.height * zoom * deviceDPR),
+        0, 0, W, H);
+    pdf.addImage(tc.toDataURL('image/png', 1.0), 'PNG', 0, 0,
+        bounds.width, bounds.height, undefined, 'FAST');
+    if (window.artboardLayer) window.artboardLayer.visible = abVis;
+    paper.view.draw();
+}
+
+// Single authoritative PDF export — iguhit-enhancements.js btn-export-pdf listener is disabled
+document.getElementById('btn-export-pdf')?.addEventListener('click', exportAllArtboardsPDF);
+
+
+// =====================================================
+// STROKE STYLE PANEL
+// =====================================================
+
+function applyStrokeProperties() {
+    const items = getSelectedDrawItems();
+    const style      = document.getElementById('stroke-style')?.value;
+    const startArrow = document.getElementById('stroke-arrow-start')?.value || 'none';
+    const endArrow   = document.getElementById('stroke-arrow-end')?.value   || 'none';
+
+    items.forEach(item => {
+        if (!(item instanceof paper.Path)) return;
+
+        if (style === 'dashed') {
+            item.dashArray = [10, 6];
+        } else {
+            item.dashArray = [];
+        }
+
+        if (!item.data) item.data = {};
+        item.data.arrowStart = startArrow;
+        item.data.arrowEnd   = endArrow;
+    });
+
+    saveState();
+    autoSaveProject();
+
+    // Trigger arrowhead redraw in enhancements
+    if (window.redrawAllArrows) {
+        setTimeout(window.redrawAllArrows, 20);
+    }
+    paper.view.draw();
+}
+
+document.getElementById('stroke-style')?.addEventListener(
+    'change',
+    applyStrokeProperties
+);
+
+document.getElementById('stroke-arrow-start')?.addEventListener(
+    'change',
+    applyStrokeProperties
+);
+
+document.getElementById('stroke-arrow-end')?.addEventListener(
+    'change',
+    applyStrokeProperties
+);
+
+
+// =====================================================
+// AUTOSAVE
+// =====================================================
+
+function autoSaveProject() {
+    try {
+        localStorage.setItem(
+            'iguhit-project-autosave',
+            paper.project.exportJSON({ asString: true })
+        );
+    } catch (e) {
+        console.warn(e);
+    }
+}
+
+function restoreAutoSavedProject() {
+    try {
+
+        const saved = localStorage.getItem(
+            'iguhit-project-autosave'
+        );
+
+        if (saved) {
+            paper.project.importJSON(saved);
+        }
+
+    } catch (e) {
+        console.warn(e);
+    }
+}
+
+setInterval(autoSaveProject, 10000);
+
+window.addEventListener('beforeunload', autoSaveProject);
+
