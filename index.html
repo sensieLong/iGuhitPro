@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>iGuhit Vector - Professional Vector Graphics Editor</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -81,6 +84,9 @@
                         <button id="btn-export-ai"><i class="fa-brands fa-adobe"></i> Export as Illustrator (.svg)</button>
                         <button id="btn-export-png"><i class="fa-solid fa-image"></i> Export as PNG</button>
                         <button id="btn-export-pdf"><i class="fa-solid fa-file-pdf"></i> Export PDF (Artboard)</button>
+                        <button id="btn-export-png-artboards"><i class="fa-solid fa-images"></i> Export PNG per Artboard</button>
+                        <hr>
+                        <button id="btn-embed-image-menu"><i class="fa-solid fa-image"></i> Place / Embed Image...</button>
                     </div>
                 </div>
                 <div class="menu-item">Edit
@@ -309,6 +315,8 @@
                 <button class="tool-btn" id="tool-zoom" data-tool="zoom" title="Zoom Tool (Z)"><i class="fa-solid fa-magnifying-glass"></i></button>
                 <button class="tool-btn" id="tool-rotate" data-tool="rotate" title="Rotate Selected (R)"><i class="fa-solid fa-arrows-rotate"></i></button>
                 <button class="tool-btn" id="tool-shape-builder" data-tool="shape-builder" title="Shape Builder Tool (Shift+M)"><i class="fa-solid fa-diagram-project"></i></button>
+                <button class="tool-btn" id="tool-tapered" data-tool="tapered" title="Tapered Brush Tool (Shift+B)"><i class="fa-solid fa-paintbrush"></i></button>
+                <button class="tool-btn" id="tool-gradient" data-tool="gradient" title="Gradient Tool (G) — Select objects then drag to set gradient direction"><i class="fa-solid fa-fill-drip"></i></button>
             </div>
             <div class="toolbar-color-selector">
                 <div class="fill-stroke-container">
@@ -442,6 +450,45 @@
                                 <button class="action-btn" id="btn-new-artboard" style="flex:1 1 100%;"><i class="fa-solid fa-square-plus"></i> Add New Artboard</button>
                             </div>
                         </div>
+                        <!-- ── NEW FEATURES ── -->
+                        <div class="property-section">
+                            <h3>Gradient Fill</h3>
+                            <div class="adv-btn-grid" style="padding:0;">
+                                <button class="action-btn" id="btn-open-gradient" style="flex:1 1 100%;"><i class="fa-solid fa-fill-drip"></i> Apply Gradient Fill...</button>
+                            </div>
+                        </div>
+                        <div class="property-section">
+                            <h3>Pattern Fill</h3>
+                            <div class="adv-btn-grid" style="padding:0;">
+                                <button class="action-btn" id="btn-open-pattern" style="flex:1 1 100%;"><i class="fa-solid fa-border-all"></i> Apply Pattern Fill...</button>
+                            </div>
+                        </div>
+                        <div class="property-section">
+                            <h3>Symbol Library</h3>
+                            <div class="adv-btn-grid" style="padding:0;">
+                                <button class="action-btn" id="btn-open-symbols" style="flex:1 1 100%;"><i class="fa-solid fa-object-group"></i> Open Symbol Library...</button>
+                            </div>
+                        </div>
+                        <div class="property-section">
+                            <h3>Image</h3>
+                            <div class="adv-btn-grid" style="padding:0;">
+                                <button class="action-btn" id="btn-embed-image" style="flex:1 1 100%;"><i class="fa-solid fa-image"></i> Place / Embed Image...</button>
+                            </div>
+                        </div>
+                        <div class="property-section">
+                            <h3>Snap to Grid</h3>
+                            <div class="adv-btn-grid" style="padding:0;align-items:center;">
+                                <button class="action-btn" id="btn-snap-grid-adv" style="flex:1 1 60%;"><i class="fa-solid fa-table-cells"></i> Toggle Snap to Grid</button>
+                                <input type="number" id="snap-grid-size" value="10" min="1" max="200" class="number-input" style="width:48px;" title="Grid size px">
+                                <span class="unit">px</span>
+                            </div>
+                        </div>
+                        <div class="property-section">
+                            <h3>Export</h3>
+                            <div class="adv-btn-grid" style="padding:0;">
+                                <button class="action-btn" id="btn-export-png-artboards" style="flex:1 1 100%;"><i class="fa-solid fa-images"></i> Export PNG per Artboard</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -554,6 +601,7 @@
     <script src="app.js"></script>
     <script src="advanced-features-addon.js"></script>
     <script src="iguhit-enhancements.js"></script>
+    <script src="iguhit-features.js"></script>
 
     <!-- ═══════════════════════════════════════════════
          RULER — self-contained, runs after Paper.js
@@ -739,5 +787,164 @@
         waitForPaper();
     })();
     </script>
-</body>
-</html>
+
+    <!-- ═══════════════════════════════════════════════
+         TOUCH HANDLING
+         1. Prevent pull-to-refresh / page scroll
+         2. Pinch-to-zoom on the canvas (any tool)
+         3. Single-touch → forwarded to Paper.js tool
+    ════════════════════════════════════════════════ -->
+    <script>
+    (function() {
+        // Prevent ALL default touch behaviors on the whole body
+        // so the browser never interprets canvas touches as scroll/refresh
+        document.body.addEventListener('touchstart', function(e) {
+            // Allow scrolling inside panels (right sidebar, dropdowns)
+            var tgt = e.target;
+            while (tgt && tgt !== document.body) {
+                if (tgt.classList && (
+                    tgt.classList.contains('right-panels') ||
+                    tgt.classList.contains('panel-body') ||
+                    tgt.classList.contains('layers-list-wrapper') ||
+                    tgt.classList.contains('dropdown-menu') ||
+                    tgt.tagName === 'SELECT' ||
+                    tgt.tagName === 'INPUT'
+                )) { return; } // let panels scroll normally
+                tgt = tgt.parentNode;
+            }
+            e.preventDefault();
+        }, { passive: false });
+
+        document.body.addEventListener('touchmove', function(e) {
+            var tgt = e.target;
+            while (tgt && tgt !== document.body) {
+                if (tgt.classList && (
+                    tgt.classList.contains('right-panels') ||
+                    tgt.classList.contains('panel-body') ||
+                    tgt.classList.contains('layers-list-wrapper') ||
+                    tgt.classList.contains('dropdown-menu')
+                )) { return; }
+                tgt = tgt.parentNode;
+            }
+            e.preventDefault();
+        }, { passive: false });
+
+        // ── Pinch Zoom ─────────────────────────────────────────
+        var _pinchActive    = false;
+        var _pinchStartDist = 0;
+        var _pinchStartZoom = 1;
+        var _pinchMidX      = 0;
+        var _pinchMidY      = 0;
+
+        function getTouchDist(t1, t2) {
+            var dx = t1.clientX - t2.clientX;
+            var dy = t1.clientY - t2.clientY;
+            return Math.sqrt(dx*dx + dy*dy);
+        }
+
+        function getTouchMid(t1, t2) {
+            return {
+                x: (t1.clientX + t2.clientX) / 2,
+                y: (t1.clientY + t2.clientY) / 2
+            };
+        }
+
+        var canvas = document.getElementById('paper-canvas');
+        if (canvas) {
+            canvas.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 2) {
+                    _pinchActive    = true;
+                    _pinchStartDist = getTouchDist(e.touches[0], e.touches[1]);
+                    _pinchStartZoom = window.paper ? paper.view.zoom : 1;
+                    var mid = getTouchMid(e.touches[0], e.touches[1]);
+                    _pinchMidX = mid.x;
+                    _pinchMidY = mid.y;
+                    e.preventDefault();
+                } else if (e.touches.length === 1) {
+                    _pinchActive = false;
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 2 && _pinchActive) {
+                    e.preventDefault();
+                    if (!window.paper) return;
+                    var dist  = getTouchDist(e.touches[0], e.touches[1]);
+                    var scale = dist / _pinchStartDist;
+                    var newZoom = Math.max(0.05, Math.min(64, _pinchStartZoom * scale));
+
+                    // Zoom toward the midpoint between the two fingers
+                    var mid = getTouchMid(e.touches[0], e.touches[1]);
+                    var rect = canvas.getBoundingClientRect();
+                    var centerX = mid.x - rect.left;
+                    var centerY = mid.y - rect.top;
+                    // Convert screen point to paper coords
+                    var cW = canvas.clientWidth, cH = canvas.clientHeight;
+                    var oldZoom = paper.view.zoom;
+                    var oldCenter = paper.view.center;
+                    var paperX = oldCenter.x + (centerX - cW/2) / oldZoom;
+                    var paperY = oldCenter.y + (centerY - cH/2) / oldZoom;
+                    // New center so the finger midpoint stays fixed
+                    var newCenterX = paperX - (centerX - cW/2) / newZoom;
+                    var newCenterY = paperY - (centerY - cH/2) / newZoom;
+
+                    paper.view.zoom   = newZoom;
+                    paper.view.center = new paper.Point(newCenterX, newCenterY);
+                    paper.view.draw();
+
+                    // Update zoom display
+                    var zi = document.getElementById('zoom-percentage-input');
+                    if (zi) zi.value = Math.round(newZoom * 100) + '%';
+                } else if (e.touches.length === 1 && !_pinchActive) {
+                    // Single finger pan when hand tool is active
+                    if (window.state && window.state.activeToolName === 'hand') {
+                        // handled by Paper.js tool events
+                    }
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', function(e) {
+                if (e.touches.length < 2) {
+                    _pinchActive = false;
+                }
+            }, { passive: true });
+        }
+
+        // ── Forward single touch to Paper.js mouse events ──────
+        // Paper.js doesn't handle touch natively on all browsers.
+        // We translate touchstart/move/end to mousedown/move/up.
+        function touchToMouse(type, touch) {
+            var evt = new MouseEvent(type, {
+                bubbles:    true,
+                cancelable: true,
+                view:       window,
+                clientX:    touch.clientX,
+                clientY:    touch.clientY,
+                button:     0,
+                buttons:    type === 'mousemove' ? 1 : 0
+            });
+            return evt;
+        }
+
+        if (canvas) {
+            canvas.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 1 && !_pinchActive) {
+                    canvas.dispatchEvent(touchToMouse('mousedown', e.touches[0]));
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 1 && !_pinchActive) {
+                    canvas.dispatchEvent(touchToMouse('mousemove', e.touches[0]));
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', function(e) {
+                if (e.changedTouches.length >= 1 && !_pinchActive) {
+                    canvas.dispatchEvent(touchToMouse('mouseup', e.changedTouches[0]));
+                }
+            }, { passive: true });
+        }
+
+    })();
+    </script>

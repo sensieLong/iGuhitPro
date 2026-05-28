@@ -33,6 +33,11 @@
     --font-size-title: 12px;
 }
 
+html {
+    overscroll-behavior: none;
+    touch-action: none;
+}
+
 body {
     font-family: var(--font-family);
     font-size: var(--font-size-ui);
@@ -42,6 +47,9 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Scrollbars styling */
@@ -614,6 +622,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    touch-action: none; /* prevent browser scroll/refresh on touch */
 }
 
 #paper-canvas {
@@ -622,6 +631,7 @@ body {
     display: block;
     cursor: default;
     background-color: transparent;
+    touch-action: none; /* critical: prevents pull-to-refresh and scroll */
 }
 
 /* ==========================================

@@ -73,6 +73,7 @@ let gridGroup;     // Guidelines group
 
 // Current active paper.js Tool
 let currentPaperTool = null;
+window.currentPaperTool = null; // exposed for feature packs
 
 // References to drawing items
 let activePath = null;       // Pen or Pencil active path
@@ -612,6 +613,7 @@ function applyVirtualModifiers(event) {
 // -------------------------------------------------------------
 function setupTools() {
     currentPaperTool = new paper.Tool();
+    window.currentPaperTool = currentPaperTool;
     
     // Core mouse events delegation
     currentPaperTool.onMouseDown = (event) => {
@@ -662,6 +664,10 @@ function setupTools() {
             handleRotateMouseDown(event);
         } else if (tool === 'shape-builder') {
             handleShapeBuilderMouseDown(event);
+        } else if (tool === 'tapered') {
+            handleTaperedMouseDown(event);
+        } else if (tool === 'gradient') {
+            handleGradientToolMouseDown(event);
         }
     };
     
@@ -695,6 +701,10 @@ function setupTools() {
             handleRotateMouseDrag(event);
         } else if (tool === 'shape-builder') {
             handleShapeBuilderMouseDrag(event);
+        } else if (tool === 'tapered') {
+            handleTaperedMouseDrag(event);
+        } else if (tool === 'gradient') {
+            handleGradientToolMouseDrag(event);
         }
     };
     
@@ -728,6 +738,10 @@ function setupTools() {
             handleRotateMouseUp(event);
         } else if (tool === 'shape-builder') {
             handleShapeBuilderMouseUp(event);
+        } else if (tool === 'tapered') {
+            handleTaperedMouseUp(event);
+        } else if (tool === 'gradient') {
+            handleGradientToolMouseUp(event);
         }
     };
 }
@@ -3435,6 +3449,8 @@ function setupKeyboardShortcuts() {
             document.getElementById('tool-ellipse').click();
         } else if (key === 'b') {
             document.getElementById('tool-pencil').click();
+        } else if (key === 'g' && !e.ctrlKey && !e.metaKey) {
+            document.getElementById('tool-gradient')?.click();
         } else if (key === 'h') {
             document.getElementById('tool-hand').click();
         } else if (key === 'z') {
@@ -3624,6 +3640,189 @@ function handleShapeBuilderMouseDrag(event) {}
 function handleShapeBuilderMouseUp(event) {
     clearShapeBuilderPreview();
 }
+
+// =====================================================
+// TAPERED BRUSH TOOL (Shift+B)
+// Draws variable-width strokes that taper to a point.
+// Converts to a filled closed vector Path on release.
+// =====================================================
+let _tapPath = null;
+let _tapPoints = [];
+
+function handleTaperedMouseDown(event) {
+    _tapPoints = [event.point];
+    _tapPath = new paper.Path({
+        strokeColor: state.strokeColor || '#000000',
+        strokeWidth: 1,
+        strokeCap: 'round',
+        strokeJoin: 'round',
+        opacity: state.strokeColorNone ? 0 : 1
+    });
+    _tapPath.add(event.point);
+}
+
+function handleTaperedMouseDrag(event) {
+    if (!_tapPath) return;
+    _tapPath.add(event.point);
+    _tapPoints.push(event.point);
+    paper.view.draw();
+}
+
+function handleTaperedMouseUp(event) {
+    if (!_tapPath || _tapPoints.length < 2) {
+        if (_tapPath) _tapPath.remove();
+        _tapPath = null; _tapPoints = [];
+        return;
+    }
+    _tapPath.smooth({ type: 'catmull-rom' });
+    const startWidth = Math.max(1, state.strokeWidth || 6);
+    const shape = _buildTaperedShape(_tapPoints, startWidth);
+    _tapPath.remove();
+    _tapPath = null; _tapPoints = [];
+    if (shape) {
+        shape.fillColor = state.strokeColor || '#000000';
+        shape.strokeColor = null;
+        shape.selected = true;
+        setupShapeStyles(shape);
+        shape.fillColor = state.strokeColor || '#000000'; // re-apply after setupShapeStyles
+        shape.strokeColor = null;
+        saveState();
+        onSelectionChanged();
+    }
+    paper.view.draw();
+}
+
+function _buildTaperedShape(points, startWidth) {
+    const n = points.length;
+    if (n < 2) return null;
+    const half = startWidth / 2;
+    const upper = [], lower = [];
+    for (let i = 0; i < n; i++) {
+        const t    = i / (n - 1);
+        const w    = half * (1 - t) + 0.3 * t; // taper to 0.3px
+        const prev = points[Math.max(0, i - 1)];
+        const next = points[Math.min(n - 1, i + 1)];
+        const dir  = next.subtract(prev).normalize();
+        const perp = new paper.Point(-dir.y, dir.x);
+        upper.push(points[i].add(perp.multiply(w)));
+        lower.push(points[i].subtract(perp.multiply(w)));
+    }
+    const shape = new paper.Path();
+    upper.forEach(pt => shape.add(pt));
+    lower.reverse().forEach(pt => shape.add(pt));
+    shape.closed = true;
+    shape.smooth({ type: 'catmull-rom' });
+    return shape;
+}
+
+// =====================================================
+// GRADIENT TOOL (G)
+// Select objects first, then drag to set the gradient
+// direction. The fill color is used as color 1, stroke
+// color as color 2.  Hold Alt while releasing = radial.
+// =====================================================
+let _gradToolOrigin = null;
+let _gradToolLine   = null;
+let _gradStartDot   = null;
+let _gradEndDot     = null;
+
+function handleGradientToolMouseDown(event) {
+    _gradToolOrigin = event.point;
+    if (_gradToolLine)    { _gradToolLine.remove();    _gradToolLine    = null; }
+    if (_gradStartDot)    { _gradStartDot.remove();    _gradStartDot    = null; }
+    if (_gradEndDot)      { _gradEndDot.remove();      _gradEndDot      = null; }
+
+    _gradToolLine = new paper.Path.Line({
+        from: event.point, to: event.point,
+        strokeColor: new paper.Color('#4a90e2'),
+        strokeWidth: 1.5, dashArray: [6, 3]
+    });
+    _gradToolLine.data = { isGradPreview: true };
+
+    _gradStartDot = new paper.Path.Circle({
+        center: event.point, radius: 5,
+        fillColor: '#fff', strokeColor: '#4a90e2', strokeWidth: 1.5
+    });
+    _gradStartDot.data = { isGradPreview: true };
+}
+
+function handleGradientToolMouseDrag(event) {
+    if (!_gradToolOrigin || !_gradToolLine) return;
+    _gradToolLine.lastSegment.point = event.point;
+    if (_gradEndDot) _gradEndDot.remove();
+    _gradEndDot = new paper.Path.Circle({
+        center: event.point, radius: 4,
+        fillColor: '#4a90e2', strokeColor: '#fff', strokeWidth: 1
+    });
+    _gradEndDot.data = { isGradPreview: true };
+    paper.view.draw();
+}
+
+function handleGradientToolMouseUp(event) {
+    // Remove preview
+    [_gradToolLine, _gradStartDot, _gradEndDot].forEach(p => {
+        if (p) { try { p.remove(); } catch(_){} }
+    });
+    _gradToolLine = _gradStartDot = _gradEndDot = null;
+
+    const origin = _gradToolOrigin;
+    _gradToolOrigin = null;
+    if (!origin) return;
+
+    const dest = event.point;
+    if (origin.getDistance(dest) < 4) return; // too short — ignore
+
+    const isRadial = event.modifiers && event.modifiers.alt;
+    const items    = getSelectedDrawItems();
+    if (!items.length) {
+        showNotification('Select objects first, then drag with the Gradient Tool');
+        return;
+    }
+
+    // Get c1 from fill-color picker, c2 from stroke-color picker
+    const c1 = document.getElementById('fill-color')?.value   || '#ff6b6b';
+    const c2 = document.getElementById('stroke-color')?.value || '#4ecdc4';
+
+    let applied = 0;
+    items.forEach(item => {
+        if (!item.bounds) return;
+        try {
+            if (isRadial) {
+                item.fillColor = {
+                    gradient: { stops: [[c1, 0], [c2, 1]], radial: true },
+                    origin:      origin,
+                    destination: dest
+                };
+            } else {
+                item.fillColor = {
+                    gradient: { stops: [[c1, 0], [c2, 1]] },
+                    origin:      origin,
+                    destination: dest
+                };
+            }
+            applied++;
+        } catch(e) { console.warn('Gradient tool err:', e); }
+    });
+
+    paper.view.draw();
+    saveState();
+    if (applied) showNotification((isRadial ? 'Radial' : 'Linear') + ' gradient applied to ' + applied + ' object' + (applied > 1 ? 's' : '') + ' ✓');
+}
+
+function showNotification(msg, color) {
+    const existing = document.getElementById('iguhit-notif');
+    if (existing) existing.remove();
+    const d = document.createElement('div');
+    d.id = 'iguhit-notif';
+    d.style.cssText = 'position:fixed;bottom:56px;left:50%;transform:translateX(-50%);' +
+        'background:' + (color || '#f17c22') + ';color:#fff;padding:8px 22px;border-radius:6px;font-size:12px;' +
+        'font-weight:600;z-index:99999;pointer-events:none;box-shadow:0 2px 14px rgba(0,0,0,.5);' +
+        'font-family:Inter,sans-serif;white-space:nowrap;';
+    d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(() => { if (d.parentNode) d.parentNode.removeChild(d); }, 2400);
+}
+window.showNotification = showNotification;
 
 
 
@@ -4242,6 +4441,14 @@ async function addHighResImagePage(pdf, bounds) {
 
 // Single authoritative PDF export — iguhit-enhancements.js btn-export-pdf listener is disabled
 document.getElementById('btn-export-pdf')?.addEventListener('click', exportAllArtboardsPDF);
+
+// Wire File-menu buttons that delegate to iguhit-features.js
+document.getElementById('btn-export-png-artboards')?.addEventListener('click', () => {
+    if (window.exportPNGPerArtboard) window.exportPNGPerArtboard();
+});
+document.getElementById('btn-embed-image-menu')?.addEventListener('click', () => {
+    if (window.openImageEmbed) window.openImageEmbed();
+});
 
 
 // =====================================================
