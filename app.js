@@ -33,10 +33,10 @@ const state = {
     strokeWidth: 2,
     opacity: 100, // percentage 0-100
     
-    // Artboard dimensions
-    artboardWidth: 800,
-    artboardHeight: 600,
-    artboardUnit: 'px',
+    // Artboard dimensions — 8.5 × 11 inches at 300 ppi (US Letter, print quality)
+    artboardWidth: 2550,   // 8.5 × 300
+    artboardHeight: 3300,  // 11  × 300
+    artboardUnit: 'in',
     artboardResolution: 300,
     
     // Zoom & Pan
@@ -2349,6 +2349,13 @@ function setupUIEventListeners() {
             
             state.activeToolName = btn.dataset.tool;
             
+            // Show gradient tool panel when gradient tool selected, hide otherwise
+            if (btn.dataset.tool === 'gradient') {
+                if (window.showGradientToolPanel) showGradientToolPanel();
+            } else {
+                if (window.hideGradientToolPanel) hideGradientToolPanel();
+            }
+
             let toolNiceName = btn.title.split(' (')[0];
             document.getElementById('active-tool-indicator').innerHTML = `${btn.innerHTML} ${toolNiceName}`;
             
@@ -3717,20 +3724,166 @@ function _buildTaperedShape(points, startWidth) {
 
 // =====================================================
 // GRADIENT TOOL (G)
-// Select objects first, then drag to set the gradient
-// direction. The fill color is used as color 1, stroke
-// color as color 2.  Hold Alt while releasing = radial.
+// Select objects first, then drag to set direction.
+// A floating panel shows color stops + gradient type.
 // =====================================================
 let _gradToolOrigin = null;
 let _gradToolLine   = null;
 let _gradStartDot   = null;
 let _gradEndDot     = null;
 
+// Gradient tool state — persists across drags
+const _gradState = {
+    type: 'linear',     // 'linear' | 'radial'
+    c1:   '#ff6b6b',
+    c2:   '#4ecdc4',
+    opacity1: 1,
+    opacity2: 1
+};
+
+// Build the floating gradient options panel
+function buildGradientToolPanel() {
+    if (document.getElementById('grad-tool-panel')) return;
+    const p = document.createElement('div');
+    p.id = 'grad-tool-panel';
+    p.style.cssText = [
+        'display:none','position:fixed','bottom:70px','left:50%',
+        'transform:translateX(-50%)',
+        'background:#2b2b2b','border:1px solid #555','border-radius:8px',
+        'padding:10px 14px','z-index:9998',
+        'box-shadow:0 4px 24px rgba(0,0,0,.7)',
+        'font-family:Inter,sans-serif','font-size:11px','color:#ccc',
+        'display:none','align-items:center','gap:12px','white-space:nowrap'
+    ].join(';');
+
+    p.innerHTML = [
+        // Type toggle
+        '<div style="display:flex;gap:4px;">',
+            '<button id="gtp-linear" style="padding:4px 10px;border:2px solid #f17c22;border-radius:4px;background:#f17c22;color:#000;font-size:10px;font-weight:700;cursor:pointer;">Linear</button>',
+            '<button id="gtp-radial" style="padding:4px 10px;border:2px solid #444;border-radius:4px;background:#1e1e1e;color:#888;font-size:10px;cursor:pointer;">Radial</button>',
+        '</div>',
+        '<div style="width:1px;height:28px;background:#444;"></div>',
+        // Color 1
+        '<div style="display:flex;align-items:center;gap:5px;">',
+            '<span style="color:#888;font-size:10px;">From</span>',
+            '<div id="gtp-sw1" style="width:24px;height:24px;border-radius:3px;border:1px solid #666;background:#ff6b6b;cursor:pointer;" title="Click to change color 1"></div>',
+            '<input type="color" id="gtp-c1" value="#ff6b6b" style="display:none;">',
+            '<input type="range" id="gtp-a1" min="0" max="100" value="100" style="width:52px;" title="Opacity">',
+        '</div>',
+        // Arrow
+        '<span style="color:#555;font-size:14px;">→</span>',
+        // Color 2
+        '<div style="display:flex;align-items:center;gap:5px;">',
+            '<span style="color:#888;font-size:10px;">To</span>',
+            '<div id="gtp-sw2" style="width:24px;height:24px;border-radius:3px;border:1px solid #666;background:#4ecdc4;cursor:pointer;" title="Click to change color 2"></div>',
+            '<input type="color" id="gtp-c2" value="#4ecdc4" style="display:none;">',
+            '<input type="range" id="gtp-a2" min="0" max="100" value="100" style="width:52px;" title="Opacity">',
+        '</div>',
+        '<div style="width:1px;height:28px;background:#444;"></div>',
+        // Live preview
+        '<div id="gtp-prev" style="width:80px;height:24px;border-radius:4px;border:1px solid #555;"></div>',
+        '<span style="color:#666;font-size:9px;">Drag on canvas</span>'
+    ].join('');
+    document.body.appendChild(p);
+
+    // Wire type buttons
+    document.getElementById('gtp-linear').onclick = function() {
+        _gradState.type = 'linear';
+        this.style.background='#f17c22'; this.style.borderColor='#f17c22'; this.style.color='#000';
+        const rb = document.getElementById('gtp-radial');
+        rb.style.background='#1e1e1e'; rb.style.borderColor='#444'; rb.style.color='#888';
+        _updateGTPPreview();
+    };
+    document.getElementById('gtp-radial').onclick = function() {
+        _gradState.type = 'radial';
+        this.style.background='#f17c22'; this.style.borderColor='#f17c22'; this.style.color='#000';
+        const lb = document.getElementById('gtp-linear');
+        lb.style.background='#1e1e1e'; lb.style.borderColor='#444'; lb.style.color='#888';
+        _updateGTPPreview();
+    };
+
+    // Wire color pickers
+    document.getElementById('gtp-sw1').onclick = () => document.getElementById('gtp-c1').click();
+    document.getElementById('gtp-sw2').onclick = () => document.getElementById('gtp-c2').click();
+
+    document.getElementById('gtp-c1').oninput = function() {
+        _gradState.c1 = this.value;
+        document.getElementById('gtp-sw1').style.background = this.value;
+        _updateGTPPreview();
+    };
+    document.getElementById('gtp-c2').oninput = function() {
+        _gradState.c2 = this.value;
+        document.getElementById('gtp-sw2').style.background = this.value;
+        _updateGTPPreview();
+    };
+    document.getElementById('gtp-a1').oninput = function() {
+        _gradState.opacity1 = parseInt(this.value) / 100;
+        _updateGTPPreview();
+    };
+    document.getElementById('gtp-a2').oninput = function() {
+        _gradState.opacity2 = parseInt(this.value) / 100;
+        _updateGTPPreview();
+    };
+
+    _updateGTPPreview();
+}
+
+function _updateGTPPreview() {
+    const prev = document.getElementById('gtp-prev');
+    if (!prev) return;
+    const c1 = _gradState.c1 || '#ff6b6b';
+    const c2 = _gradState.c2 || '#4ecdc4';
+    if (_gradState.type === 'radial') {
+        prev.style.background = `radial-gradient(circle, ${c1}, ${c2})`;
+    } else {
+        prev.style.background = `linear-gradient(90deg, ${c1}, ${c2})`;
+    }
+}
+
+function showGradientToolPanel() {
+    buildGradientToolPanel();
+    const p = document.getElementById('grad-tool-panel');
+    if (p) { p.style.display = 'flex'; _updateGTPPreview(); }
+}
+function hideGradientToolPanel() {
+    const p = document.getElementById('grad-tool-panel');
+    if (p) p.style.display = 'none';
+}
+window.showGradientToolPanel = showGradientToolPanel;
+window.hideGradientToolPanel = hideGradientToolPanel;
+
+// Safely convert any color value to a Paper.js-safe hex string
+function _safeHex(val, fallback) {
+    if (!val) return fallback || '#000000';
+    // Already a valid 6-digit hex
+    if (/^#[0-9a-fA-F]{6}$/.test(val)) return val;
+    // 3-digit hex → expand
+    if (/^#[0-9a-fA-F]{3}$/.test(val)) {
+        return '#' + val[1]+val[1]+val[2]+val[2]+val[3]+val[3];
+    }
+    // Try parsing via a canvas
+    try {
+        const ctx = document.createElement('canvas').getContext('2d');
+        ctx.fillStyle = val;
+        const hex = ctx.fillStyle; // browser normalises to #rrggbb or rgba(...)
+        if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
+    } catch(_) {}
+    return fallback || '#000000';
+}
+
+// Build a Paper.js Color with opacity baked in
+function _makePaperColor(hex, opacity) {
+    const h = _safeHex(hex, '#000000');
+    const c = new paper.Color(h);
+    c.alpha = (opacity === undefined || isNaN(opacity)) ? 1 : Math.max(0, Math.min(1, opacity));
+    return c;
+}
+
 function handleGradientToolMouseDown(event) {
     _gradToolOrigin = event.point;
-    if (_gradToolLine)    { _gradToolLine.remove();    _gradToolLine    = null; }
-    if (_gradStartDot)    { _gradStartDot.remove();    _gradStartDot    = null; }
-    if (_gradEndDot)      { _gradEndDot.remove();      _gradEndDot      = null; }
+    if (_gradToolLine)  { try { _gradToolLine.remove();  } catch(_){} _gradToolLine  = null; }
+    if (_gradStartDot)  { try { _gradStartDot.remove();  } catch(_){} _gradStartDot  = null; }
+    if (_gradEndDot)    { try { _gradEndDot.remove();    } catch(_){} _gradEndDot    = null; }
 
     _gradToolLine = new paper.Path.Line({
         from: event.point, to: event.point,
@@ -3741,7 +3894,9 @@ function handleGradientToolMouseDown(event) {
 
     _gradStartDot = new paper.Path.Circle({
         center: event.point, radius: 5,
-        fillColor: '#fff', strokeColor: '#4a90e2', strokeWidth: 1.5
+        fillColor: new paper.Color('#ffffff'),
+        strokeColor: new paper.Color('#4a90e2'),
+        strokeWidth: 1.5
     });
     _gradStartDot.data = { isGradPreview: true };
 }
@@ -3749,17 +3904,19 @@ function handleGradientToolMouseDown(event) {
 function handleGradientToolMouseDrag(event) {
     if (!_gradToolOrigin || !_gradToolLine) return;
     _gradToolLine.lastSegment.point = event.point;
-    if (_gradEndDot) _gradEndDot.remove();
+    if (_gradEndDot) { try { _gradEndDot.remove(); } catch(_){} }
     _gradEndDot = new paper.Path.Circle({
         center: event.point, radius: 4,
-        fillColor: '#4a90e2', strokeColor: '#fff', strokeWidth: 1
+        fillColor: new paper.Color('#4a90e2'),
+        strokeColor: new paper.Color('#ffffff'),
+        strokeWidth: 1
     });
     _gradEndDot.data = { isGradPreview: true };
     paper.view.draw();
 }
 
 function handleGradientToolMouseUp(event) {
-    // Remove preview
+    // Remove preview elements
     [_gradToolLine, _gradStartDot, _gradEndDot].forEach(p => {
         if (p) { try { p.remove(); } catch(_){} }
     });
@@ -3770,18 +3927,27 @@ function handleGradientToolMouseUp(event) {
     if (!origin) return;
 
     const dest = event.point;
-    if (origin.getDistance(dest) < 4) return; // too short — ignore
+    if (origin.getDistance(dest) < 4) return;
 
-    const isRadial = event.modifiers && event.modifiers.alt;
-    const items    = getSelectedDrawItems();
+    const isRadial = (_gradState.type === 'radial') ||
+                     (event.modifiers && event.modifiers.alt);
+    const items = getSelectedDrawItems();
     if (!items.length) {
         showNotification('Select objects first, then drag with the Gradient Tool');
         return;
     }
 
-    // Get c1 from fill-color picker, c2 from stroke-color picker
-    const c1 = document.getElementById('fill-color')?.value   || '#ff6b6b';
-    const c2 = document.getElementById('stroke-color')?.value || '#4ecdc4';
+    // Use colors from the gradient tool panel (validated hex)
+    const c1hex = _safeHex(_gradState.c1, '#ff6b6b');
+    const c2hex = _safeHex(_gradState.c2, '#4ecdc4');
+    const a1    = isNaN(_gradState.opacity1) ? 1 : _gradState.opacity1;
+    const a2    = isNaN(_gradState.opacity2) ? 1 : _gradState.opacity2;
+
+    // Build Paper.js color stops with explicit Color objects (avoids hex format errors)
+    const stop1 = new paper.Color(c1hex);
+    stop1.alpha = a1;
+    const stop2 = new paper.Color(c2hex);
+    stop2.alpha = a2;
 
     let applied = 0;
     items.forEach(item => {
@@ -3789,13 +3955,13 @@ function handleGradientToolMouseUp(event) {
         try {
             if (isRadial) {
                 item.fillColor = {
-                    gradient: { stops: [[c1, 0], [c2, 1]], radial: true },
+                    gradient: { stops: [stop1, stop2], radial: true },
                     origin:      origin,
                     destination: dest
                 };
             } else {
                 item.fillColor = {
-                    gradient: { stops: [[c1, 0], [c2, 1]] },
+                    gradient: { stops: [stop1, stop2] },
                     origin:      origin,
                     destination: dest
                 };
@@ -3806,7 +3972,8 @@ function handleGradientToolMouseUp(event) {
 
     paper.view.draw();
     saveState();
-    if (applied) showNotification((isRadial ? 'Radial' : 'Linear') + ' gradient applied to ' + applied + ' object' + (applied > 1 ? 's' : '') + ' ✓');
+    if (applied) showNotification((isRadial ? 'Radial' : 'Linear') + ' gradient applied to ' +
+        applied + ' object' + (applied > 1 ? 's' : '') + ' ✓');
 }
 
 function showNotification(msg, color) {
@@ -4131,6 +4298,8 @@ function exportAllArtboardsPDF() {
     // ── Colour helpers ─────────────────────────────────
     function paperColorToRGB(c) {
         if (!c) return null;
+        // Gradient colour — cannot convert directly
+        if (c.type === 'gradient' || (c.gradient)) return null;
         try {
             const rgb = c.convert('rgb');
             return [
@@ -4138,18 +4307,115 @@ function exportAllArtboardsPDF() {
                 Math.max(0, Math.min(1, rgb.green  || 0)),
                 Math.max(0, Math.min(1, rgb.blue   || 0))
             ];
-        } catch (_) { return [0, 0, 0]; }
+        } catch (_) { return null; }
     }
-    function r3(n) { return +n.toFixed(4); }
 
-    // ── PDF coordinate transform ───────────────────────
-    // PDF origin is bottom-left; Paper.js origin is top-left.
-    // We flip Y per page: pdfY = pageH - paperY + offsetY
+    // Resolve any Paper.js Color to an RGB triple safely
+    function safeRGB(c, fallback) {
+        const r = paperColorToRGB(c);
+        return r || (fallback || [0, 0, 0]);
+    }
+
+    function r3(n) { return +n.toFixed(4); }
     function tx(px, ox) { return r3(px - ox); }
     function ty(py, oy, ph) { return r3(ph - (py - oy)); }
 
+    // Check if a Paper.js Color is a gradient
+    function isGradient(c) {
+        return c && (c.type === 'gradient' || c.gradient != null);
+    }
+
+    // Extract gradient stops as [[r,g,b], offset] pairs
+    function getGradientStops(c) {
+        if (!c || !c.gradient || !c.gradient.stops) return [[0,0,0],[1,1,1]];
+        return c.gradient.stops.map(stop => {
+            let color, offset;
+            if (Array.isArray(stop)) {
+                color  = stop[0];
+                offset = stop[1] != null ? stop[1] : 0;
+            } else if (stop && stop.color !== undefined) {
+                color  = stop.color;
+                offset = stop.offset != null ? stop.offset : 0;
+            } else {
+                color  = stop;
+                offset = 0;
+            }
+            let rgb = [0, 0, 0];
+            try {
+                if (typeof color === 'string') {
+                    const pc = new paper.Color(color);
+                    rgb = [pc.red || 0, pc.green || 0, pc.blue || 0];
+                } else if (color && typeof color === 'object') {
+                    const pc = color.convert ? color.convert('rgb') : color;
+                    rgb = [pc.red || 0, pc.green || 0, pc.blue || 0];
+                }
+            } catch(_) {}
+            return { rgb, offset: +offset };
+        });
+    }
+
+    // ── PDF SHading (gradient) support ─────────────────
+    // We collect shading dicts and XObjects per page, then embed them.
+    let shadingCounter = 0;
+    const pageShading = []; // per-board: { dicts: {}, ops: [] }
+
+    // Build a PDF Shading dict string and return a /SH name
+    function buildShading(fillColor, item, ox, oy, ph, shadings) {
+        if (!isGradient(fillColor)) return null;
+        const isRadial = fillColor.gradient && fillColor.gradient.radial;
+        const stops    = getGradientStops(fillColor);
+        if (!stops || stops.length < 2) return null;
+
+        // Get origin and destination in PDF coords
+        let x0, y0, x1, y1;
+        try {
+            x0 = tx(fillColor.origin.x,      ox);
+            y0 = ty(fillColor.origin.y,      oy, ph);
+            x1 = tx(fillColor.destination.x, ox);
+            y1 = ty(fillColor.destination.y, oy, ph);
+        } catch(_) {
+            // Fall back to item bounding box
+            const b = item.bounds;
+            x0 = tx(b.x,           ox); y0 = ty(b.y + b.height, oy, ph);
+            x1 = tx(b.x + b.width, ox); y1 = ty(b.y,            oy, ph);
+        }
+
+        const shName = `SH${++shadingCounter}`;
+
+        // Build a Function type 3 (stitching) or type 2 (single interval)
+        // For simplicity we use type 2 between first and last stop
+        const c0 = stops[0].rgb.map(r3).join(' ');
+        const c1 = stops[stops.length - 1].rgb.map(r3).join(' ');
+
+        let dictStr;
+        if (isRadial) {
+            const r = Math.sqrt((x1-x0)*(x1-x0)+(y1-y0)*(y1-y0));
+            dictStr = [
+                `<< /ShadingType 3`,
+                `/ColorSpace /DeviceRGB`,
+                `/Coords [${r3(x0)} ${r3(y0)} 0 ${r3(x0)} ${r3(y0)} ${r3(r)}]`,
+                `/Function << /FunctionType 2 /Domain [0 1] /C0 [${c0}] /C1 [${c1}] /N 1 >>`,
+                `/Extend [true true]`,
+                `>>`
+            ].join('\n');
+        } else {
+            dictStr = [
+                `<< /ShadingType 2`,
+                `/ColorSpace /DeviceRGB`,
+                `/Coords [${r3(x0)} ${r3(y0)} ${r3(x1)} ${r3(y1)}]`,
+                `/Function << /FunctionType 2 /Domain [0 1] /C0 [${c0}] /C1 [${c1}] /N 1 >>`,
+                `/Extend [true true]`,
+                `>>`
+            ].join('\n');
+        }
+
+        shadings[shName] = dictStr;
+        return shName;
+    }
+
+    // ── PDF coordinate transform ───────────────────────
     // ── Convert one Paper.js item to PDF content stream ops ──
-    function itemToOps(item, ox, oy, ph) {
+    function itemToOps(item, ox, oy, ph, shadings) {
         const ops = [];
 
         if (!item.visible || item.opacity === 0) return ops;
@@ -4166,7 +4432,6 @@ function exportAllArtboardsPDF() {
             for (const path of paths) {
                 if (!path.segments || !path.segments.length) continue;
                 const segs = path.segments;
-                // Move to first point
                 const fp = segs[0].point;
                 pd += `${tx(fp.x, ox)} ${ty(fp.y, oy, ph)} m\n`;
 
@@ -4177,7 +4442,6 @@ function exportAllArtboardsPDF() {
                     const hi   = curr.handleIn;
                     if ((ho && (ho.x !== 0 || ho.y !== 0)) ||
                         (hi && (hi.x !== 0 || hi.y !== 0))) {
-                        // Cubic Bézier
                         const c1x = tx(prev.point.x + (ho ? ho.x : 0), ox);
                         const c1y = ty(prev.point.y + (ho ? ho.y : 0), oy, ph);
                         const c2x = tx(curr.point.x + (hi ? hi.x : 0), ox);
@@ -4190,9 +4454,8 @@ function exportAllArtboardsPDF() {
                     }
                 }
 
-                // Close segment with curve back to start if closed
                 if (path.closed && segs.length > 1) {
-                    const last = segs[segs.length - 1];
+                    const last   = segs[segs.length - 1];
                     const first2 = segs[0];
                     const ho = last.handleOut;
                     const hi = first2.handleIn;
@@ -4206,62 +4469,80 @@ function exportAllArtboardsPDF() {
                         const ey  = ty(first2.point.y, oy, ph);
                         pd += `${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey} c\n`;
                     }
-                    pd += 'h\n'; // close path
+                    pd += 'h\n';
                 }
             }
 
             if (!pd.trim()) { if (opacity < 1) ops.push('Q'); return ops; }
 
-            // Graphics state: fill + stroke
-            const fill   = paperColorToRGB(item.fillColor);
-            const stroke = paperColorToRGB(item.strokeColor);
-            const sw     = item.strokeWidth || 0;
+            const hasFillGrad   = isGradient(item.fillColor);
+            const fill          = hasFillGrad ? null : paperColorToRGB(item.fillColor);
+            const stroke        = paperColorToRGB(item.strokeColor);
+            const sw            = item.strokeWidth || 0;
 
-            ops.push(pd.trim());
-
-            if (fill && stroke && sw > 0) {
-                ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
-                ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
-                ops.push(`${r3(sw)} w`);
-                // Dash array
-                if (item.dashArray && item.dashArray.length) {
-                    ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+            if (hasFillGrad) {
+                // Render gradient fill via PDF shading:
+                // 1. Clip to path, 2. Paint shading, 3. Restore
+                const shName = buildShading(item.fillColor, item, ox, oy, ph, shadings);
+                if (shName) {
+                    ops.push('q');            // save
+                    ops.push(pd.trim());      // path
+                    ops.push('W n');          // clip to path, no fill
+                    ops.push(`/${shName} sh`);// paint shading
+                    ops.push('Q');            // restore
                 }
-                ops.push(item.closed !== false ? 'B' : 'B');
-            } else if (fill) {
-                ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
-                ops.push('f');
-            } else if (stroke && sw > 0) {
-                ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
-                ops.push(`${r3(sw)} w`);
-                if (item.dashArray && item.dashArray.length) {
-                    ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                // Now draw stroke if any
+                if (stroke && sw > 0) {
+                    ops.push(pd.trim());
+                    ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
+                    ops.push(`${r3(sw)} w`);
+                    if (item.dashArray && item.dashArray.length) {
+                        ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                    }
+                    ops.push('S');
                 }
-                ops.push('S');
             } else {
-                ops.push('n'); // no-op, just clear path
+                ops.push(pd.trim());
+                if (fill && stroke && sw > 0) {
+                    ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+                    ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
+                    ops.push(`${r3(sw)} w`);
+                    if (item.dashArray && item.dashArray.length) {
+                        ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                    }
+                    ops.push('B');
+                } else if (fill) {
+                    ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+                    ops.push('f');
+                } else if (stroke && sw > 0) {
+                    ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
+                    ops.push(`${r3(sw)} w`);
+                    if (item.dashArray && item.dashArray.length) {
+                        ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                    }
+                    ops.push('S');
+                } else {
+                    ops.push('n');
+                }
             }
 
         } else if (item instanceof paper.PointText) {
-            // Text object — output as PDF text operator
-            const fill = paperColorToRGB(item.fillColor) || [0, 0, 0];
+            const fill = safeRGB(item.fillColor, [0,0,0]);
             const fs   = item.fontSize || 12;
             const x    = tx(item.point.x, ox);
             const y    = ty(item.point.y, oy, ph);
-            // Escape special PDF string chars
             const safe = (item.content || '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-            ops.push(`BT`);
+            ops.push('BT');
             ops.push(`/F1 ${r3(fs)} Tf`);
             ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
             ops.push(`${x} ${y} Td`);
             ops.push(`(${safe}) Tj`);
-            ops.push(`ET`);
+            ops.push('ET');
 
         } else if (item instanceof paper.Group) {
-            // Recurse into group
             ops.push('q');
             item.children.forEach(child => {
-                ops.push(...itemToOps(child, ox, oy, ph));
+                ops.push(...itemToOps(child, ox, oy, ph, shadings));
             });
             ops.push('Q');
         }
@@ -4307,11 +4588,17 @@ function exportAllArtboardsPDF() {
     }
 
     // ── Per-page content streams ──────────────────────
+    // Each page gets its own shadings dict so shading names don't conflict
     const contentStreams = [];
+    const pageShadeObjs = []; // array of {name: dictStr} per page
+
     for (let i = 0; i < boards.length; i++) {
         const bounds = boards[i].rect.bounds;
         const W = bounds.width, H = bounds.height;
         const ox = bounds.x,    oy = bounds.y;
+
+        // Per-page shadings dict — populated by itemToOps via buildShading
+        const shadings = {};
 
         const ops = [];
         // White page background
@@ -4329,13 +4616,14 @@ function exportAllArtboardsPDF() {
                 if (!child.isInserted() || !child.visible) return;
                 if (child.bounds && child.bounds.intersects(bounds)) {
                     ops.push('q');
-                    ops.push(...itemToOps(child, ox, oy, H));
+                    ops.push(...itemToOps(child, ox, oy, H, shadings));
                     ops.push('Q');
                 }
             });
         });
 
         contentStreams.push(ops.join('\n'));
+        pageShadeObjs.push(shadings);
     }
 
     // ── Write objects ─────────────────────────────────
@@ -4363,18 +4651,28 @@ function exportAllArtboardsPDF() {
         const cNum = contentNums[i];
         const pNum = pageNums[i];
         const stream = contentStreams[i];
-        const streamBytes = new TextEncoder().encode(stream);
-        const slen = streamBytes.length;
+        const shadings = pageShadeObjs[i];
 
-        // Page object
+        // Build Shading resource dict if this page has gradients
+        const shadeKeys = Object.keys(shadings);
+        let shadeResource = '';
+        if (shadeKeys.length > 0) {
+            // Each shading dict is embedded inline in the Resources
+            const shEntries = shadeKeys.map(k => `/${k} ${shadings[k]}`).join('\n');
+            shadeResource = `\n   /Shading << ${shEntries} >>`;
+        }
+
+        // Page object with Shading in Resources
         writeObj(pNum,
             `<< /Type /Page\n   /Parent ${pagesNum} 0 R\n` +
             `   /MediaBox [0 0 ${W} ${H}]\n` +
             `   /Contents ${cNum} 0 R\n` +
-            `   /Resources << /Font << /F1 ${fontNum} 0 R >> >>\n>>`
+            `   /Resources << /Font << /F1 ${fontNum} 0 R >>${shadeResource} >>\n>>`
         );
 
         // Content stream object
+        const streamBytes = new TextEncoder().encode(stream);
+        const slen = streamBytes.length;
         offsets[cNum] = offset;
         w(`${cNum} 0 obj\n<< /Length ${slen} >>\nstream\n`);
         w(stream);

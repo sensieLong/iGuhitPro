@@ -278,8 +278,8 @@
             <span style="font-size:10px;color:var(--color-text-muted);">H:</span>
             <input type="number" id="artboard-h-input" class="number-input" style="width:52px;" min="0.1" step="any">
             <select id="artboard-unit-select" class="select-input" style="width:70px;margin-left:3px;">
-                <option value="px" selected>Pixels</option>
-                <option value="in">Inches</option>
+                <option value="px">Pixels</option>
+                <option value="in" selected>Inches</option>
                 <option value="cm">Centimeters</option>
                 <option value="mm">Millimeters</option>
             </select>
@@ -738,12 +738,18 @@
                 vCtx.lineTo(RS, py + 0.5);
                 vCtx.stroke();
 
-                // Rotated label
+                // Rotated label — clipped to ruler strip
+                var lbl = String(Math.round(u * 10) / 10);
                 vCtx.save();
                 vCtx.fillStyle = '#ff8888';
-                vCtx.translate(RS - 2, py - 1);
+                // Clip so text stays within the 20px strip
+                vCtx.beginPath(); vCtx.rect(0, py - 20, RS, 20); vCtx.clip();
+                // Rotate around a point inside the strip
+                vCtx.translate(RS - 2, py - 2);
                 vCtx.rotate(-Math.PI / 2);
-                vCtx.fillText(String(Math.round(u * 10) / 10), 2, 0);
+                vCtx.textAlign = 'left';
+                vCtx.textBaseline = 'middle';
+                vCtx.fillText(lbl, 0, 0);
                 vCtx.restore();
 
                 // Minor ticks
@@ -796,34 +802,43 @@
     ════════════════════════════════════════════════ -->
     <script>
     (function() {
-        // Prevent ALL default touch behaviors on the whole body
-        // so the browser never interprets canvas touches as scroll/refresh
-        document.body.addEventListener('touchstart', function(e) {
-            // Allow scrolling inside panels (right sidebar, dropdowns)
-            var tgt = e.target;
-            while (tgt && tgt !== document.body) {
-                if (tgt.classList && (
-                    tgt.classList.contains('right-panels') ||
-                    tgt.classList.contains('panel-body') ||
-                    tgt.classList.contains('layers-list-wrapper') ||
-                    tgt.classList.contains('dropdown-menu') ||
-                    tgt.tagName === 'SELECT' ||
-                    tgt.tagName === 'INPUT'
-                )) { return; } // let panels scroll normally
-                tgt = tgt.parentNode;
-            }
-            e.preventDefault();
-        }, { passive: false });
+        // Prevent pull-to-refresh / page scroll ONLY on the canvas area.
+        // Toolbar buttons, panels and inputs must receive touch events normally.
+        var canvasViewport = document.getElementById('canvas-viewport');
+        if (canvasViewport) {
+            canvasViewport.addEventListener('touchstart', function(e) {
+                // Allow two-finger events to reach the pinch handler below
+                e.preventDefault();
+            }, { passive: false });
+            canvasViewport.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+        }
 
+        // Also block pull-to-refresh on the main container but NOT on interactive elements
         document.body.addEventListener('touchmove', function(e) {
             var tgt = e.target;
+            // Walk up to see if we're inside an interactive/scrollable area
             while (tgt && tgt !== document.body) {
-                if (tgt.classList && (
-                    tgt.classList.contains('right-panels') ||
-                    tgt.classList.contains('panel-body') ||
-                    tgt.classList.contains('layers-list-wrapper') ||
-                    tgt.classList.contains('dropdown-menu')
-                )) { return; }
+                var tag = tgt.tagName;
+                if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' ||
+                    tag === 'BUTTON' || tag === 'A') {
+                    return; // allow normal touch on interactive elements
+                }
+                if (tgt.classList) {
+                    if (tgt.classList.contains('right-panels') ||
+                        tgt.classList.contains('panel-body') ||
+                        tgt.classList.contains('layers-list-wrapper') ||
+                        tgt.classList.contains('dropdown-menu') ||
+                        tgt.classList.contains('left-toolbar') ||
+                        tgt.classList.contains('tools-grid') ||
+                        tgt.classList.contains('tool-btn') ||
+                        tgt.classList.contains('control-bar') ||
+                        tgt.classList.contains('app-header') ||
+                        tgt.classList.contains('app-status-bar')) {
+                        return; // allow scroll/touch in UI panels
+                    }
+                }
                 tgt = tgt.parentNode;
             }
             e.preventDefault();
