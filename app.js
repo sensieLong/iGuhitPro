@@ -2311,6 +2311,29 @@ function loadStateString(jsonString) {
                 state.artboardResolution = artboardLayer.data.artboardResolution;
             }
         }
+
+        // ── Enforce correct PPI ──────────────────────────────
+        // If restored state has wrong PPI (e.g. old 96ppi save),
+        // recalculate from actual artboard pixel dimensions.
+        // Standard: 8.5in × 11in at 300ppi = 2550 × 3300px
+        //           8.5in × 11in at 96ppi  =  816 × 1056px
+        if (state.artboardUnit === 'in' || !state.artboardUnit) {
+            const w = state.artboardWidth, h = state.artboardHeight;
+            // Detect 300ppi letter
+            if (Math.abs(w - 2550) < 10 && Math.abs(h - 3300) < 10) {
+                state.artboardResolution = 300; state.artboardUnit = 'in';
+            }
+            // Detect 96ppi letter — upgrade to 300ppi record
+            else if (Math.abs(w - 816) < 10 && Math.abs(h - 1056) < 10) {
+                state.artboardResolution = 96; state.artboardUnit = 'in';
+            }
+            // Generic: if ppi stored is clearly wrong (e.g. 0 or 1), use 300
+            else if (!state.artboardResolution || state.artboardResolution < 10) {
+                state.artboardResolution = 300;
+            }
+        }
+        // Always ensure artboardUnit is set
+        if (!state.artboardUnit) state.artboardUnit = 'in';
     }
     
     // Re-resolve drawing layer

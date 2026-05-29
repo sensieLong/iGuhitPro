@@ -599,6 +599,18 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+    // Clear old localStorage saves that have wrong PPI/unit defaults.
+    // Version stamp — increment when defaults change.
+    (function() {
+        var CACHE_VERSION = 'iguhit_v4_300ppi';
+        if (localStorage.getItem('iguhit_cache_version') !== CACHE_VERSION) {
+            // Remove old autosave so app starts fresh with new 300ppi defaults
+            localStorage.removeItem('iguhitVectorProject');
+            localStorage.setItem('iguhit_cache_version', CACHE_VERSION);
+        }
+    })();
+    </script>
     <script src="advanced-features-addon.js"></script>
     <script src="iguhit-enhancements.js"></script>
     <script src="iguhit-features.js"></script>
@@ -609,8 +621,6 @@
     ════════════════════════════════════════════════ -->
     <script>
     (function() {
-        var PPI = 96; // paper pixels per inch
-
         function drawRuler() {
             if (!window.paper || !paper.view) return;
 
@@ -622,87 +632,110 @@
 
             var W  = hDiv.offsetWidth  || 800;
             var H  = vDiv.offsetHeight || 600;
-            var RS = 20; // ruler strip thickness
+            var RS = 20;
 
-            // Size the canvases
             hCvs.width = W;  hCvs.height = RS;
             vCvs.width = RS; vCvs.height = H;
 
             var hCtx = hCvs.getContext('2d');
             var vCtx = vCvs.getContext('2d');
 
-            // Dark background
             hCtx.fillStyle = '#1e1e1e'; hCtx.fillRect(0, 0, W, RS);
             vCtx.fillStyle = '#1e1e1e'; vCtx.fillRect(0, 0, RS, H);
 
-            // ── Compute where inch-0 lands in ruler-canvas CSS pixels ──
-            // paper.view.center = paper-coord of screen center
-            // paper.view.zoom   = screen CSS-px per paper-px
             var zoom = paper.view.zoom;
-            var vc   = paper.view.center; // paper coords
+            var vc   = paper.view.center;
 
-            // Paper canvas CSS size
             var pc = document.getElementById('paper-canvas');
             var cW = pc ? (pc.clientWidth  || pc.offsetWidth  || 800) : 800;
             var cH = pc ? (pc.clientHeight || pc.offsetHeight || 600) : 600;
 
-            // Paper-coord of paper-canvas top-left corner:
+            // Paper-coord of canvas top-left
             var tlX = vc.x - cW / (2 * zoom);
             var tlY = vc.y - cH / (2 * zoom);
 
-            // Artboard top-left is at paper-coord (200, 150).
-            // Its CSS position within the paper canvas:
-            var abCssX = (200 - tlX) * zoom;
-            var abCssY = (150 - tlY) * zoom;
+            // Artboard TL is at paper-point (200, 150) — ruler zero origin
+            var ox = (200 - tlX) * zoom;
+            var oy = (150 - tlY) * zoom;
 
-            // ruler-h canvas has left:20px inside canvas-viewport.
-            // paper-canvas also starts at left:20px (viewport padding-left:20px).
-            // So ruler-h canvas x=0 == paper canvas x=0. No offset needed.
-            var ox = abCssX; // x in ruler-h canvas where paper-x=200 (inch 0) is
-            var oy = abCssY; // y in ruler-v canvas where paper-y=150 (inch 0) is
+            // PPI from state (300 for print, 96 for screen)
+            // spi = screen CSS pixels per 1 inch
+            var PPI  = (window.state && window.state.artboardResolution) || 300;
+            var unit = (window.state && window.state.artboardUnit) || 'in';
 
-            // Screen CSS pixels per inch
-            var spi = PPI * zoom;
-
-            // Choose a step (in inches) so ticks are >= 50px apart
-            var steps = [0.125, 0.25, 0.5, 1, 2, 4, 8];
-            var step = 1;
-            for (var i = 0; i < steps.length; i++) {
-                if (steps[i] * spi >= 50) { step = steps[i]; break; }
+            // Cross-check: derive PPI from actual artboard pixel width ÷ physical width.
+            // This is immune to stale localStorage values.
+            if (unit === 'in' && window.state) {
+                var abW  = window.state.artboardWidth  || 2550;
+                var abH  = window.state.artboardHeight || 3300;
+                // convertPixelsToUnit tells us the physical size the user set
+                // but we can also back-calculate: if artboardWidth = 2550 and
+                // artboardUnit = 'in', then PPI must be 2550 / 8.5 = 300.
+                // We compute this from the artboard rect's actual pixel width
+                // and the stored physical dimensions.
+                if (window.artboardRect && window.artboardRect.isInserted()) {
+                    var realPxW = window.artboardRect.bounds.width;
+                    var stateInW = (typeof convertPixelsToUnit === 'function')
+                        ? convertPixelsToUnit(abW, 'in', PPI)
+                        : (abW / PPI);
+                    if (stateInW > 0.1) {
+                        PPI = Math.round(realPxW / stateInW);
+                    }
+                }
             }
-            var stepPx = step * spi;
-            if (stepPx < 1) return;
 
-            // Minor tick divisions
-            var divs  = step < 0.5 ? 2 : 4;
+            // How many paper-pixels = 1 display unit
+            var pxPerUnit;
+            if (unit === 'in')      pxPerUnit = PPI;
+            else if (unit === 'cm') pxPerUnit = PPI / 2.54;
+            else if (unit === 'mm') pxPerUnit = PPI / 25.4;
+            else                    pxPerUnit = 1; // px
+
+            // Screen CSS pixels per display unit
+            var spu = pxPerUnit * zoom;
+
+            // Choose step so ticks >= 50px apart
+            var steps = unit === 'in'  ? [0.125, 0.25, 0.5, 1, 2, 4, 8, 16]
+                      : unit === 'cm'  ? [0.5, 1, 2, 5, 10, 20]
+                      : unit === 'mm'  ? [1, 5, 10, 20, 50, 100]
+                      :                  [10, 50, 100, 200, 500, 1000];
+            var step = steps[steps.length - 1];
+            for (var i = 0; i < steps.length; i++) {
+                if (steps[i] * spu >= 50) { step = steps[i]; break; }
+            }
+            var stepPx = step * spu;
+            if (stepPx < 0.5) return;
+
+            var divs  = (unit === 'in') ? 4 : 5;
             var subPx = stepPx / divs;
+
+            function fmtLabel(v) {
+                var n = Math.round(v * 1000) / 1000;
+                if (unit === 'px' || unit === 'mm') return String(Math.round(n));
+                return String(Math.round(n * 10) / 10);
+            }
 
             hCtx.font = '9px Arial,sans-serif';
             hCtx.textBaseline = 'top';
-            vCtx.font = '9px Arial,sans-serif';
-            vCtx.textBaseline = 'top';
 
-            // ── Horizontal ruler ─────────────────────────────────
+            // ── Horizontal ruler ──
             var firstH = Math.floor(-ox / stepPx) - 2;
             var lastH  = Math.ceil((W - ox) / stepPx) + 2;
             for (var n = firstH; n <= lastH; n++) {
-                var u  = n * step;          // inch value
-                var sx = ox + n * stepPx;   // CSS px position
+                var u  = n * step;
+                var sx = ox + n * stepPx;
                 if (sx < -stepPx || sx > W + stepPx) continue;
                 var px = Math.round(sx);
 
-                // Major tick — full height
                 hCtx.strokeStyle = '#ff3333'; hCtx.lineWidth = 1;
                 hCtx.beginPath();
                 hCtx.moveTo(px + 0.5, 0);
                 hCtx.lineTo(px + 0.5, RS);
                 hCtx.stroke();
 
-                // Label
                 hCtx.fillStyle = '#ff8888';
-                hCtx.fillText(String(Math.round(u * 10) / 10), px + 2, 2);
+                hCtx.fillText(fmtLabel(u), px + 2, 2);
 
-                // Minor ticks
                 if (subPx >= 3) {
                     for (var d = 1; d < divs; d++) {
                         var mx = px + Math.round(d * subPx);
@@ -722,7 +755,10 @@
             hCtx.moveTo(0, RS - 0.5); hCtx.lineTo(W, RS - 0.5);
             hCtx.stroke();
 
-            // ── Vertical ruler ───────────────────────────────────
+            // ── Vertical ruler ──
+            vCtx.font = '9px Arial,sans-serif';
+            vCtx.textBaseline = 'top';
+
             var firstV = Math.floor(-oy / stepPx) - 2;
             var lastV  = Math.ceil((H - oy) / stepPx) + 2;
             for (var n = firstV; n <= lastV; n++) {
@@ -731,28 +767,26 @@
                 if (sy < -stepPx || sy > H + stepPx) continue;
                 var py = Math.round(sy);
 
-                // Major tick — full width
                 vCtx.strokeStyle = '#ff3333'; vCtx.lineWidth = 1;
                 vCtx.beginPath();
                 vCtx.moveTo(0, py + 0.5);
                 vCtx.lineTo(RS, py + 0.5);
                 vCtx.stroke();
 
-                // Rotated label — clipped to ruler strip
-                var lbl = String(Math.round(u * 10) / 10);
+                // Label — drawn horizontally at small size, fits in 20px strip
+                var lbl = fmtLabel(u);
                 vCtx.save();
                 vCtx.fillStyle = '#ff8888';
-                // Clip so text stays within the 20px strip
-                vCtx.beginPath(); vCtx.rect(0, py - 20, RS, 20); vCtx.clip();
-                // Rotate around a point inside the strip
-                vCtx.translate(RS - 2, py - 2);
-                vCtx.rotate(-Math.PI / 2);
+                vCtx.font = 'bold 7px Arial,sans-serif';
                 vCtx.textAlign = 'left';
-                vCtx.textBaseline = 'middle';
-                vCtx.fillText(lbl, 0, 0);
+                vCtx.textBaseline = 'top';
+                // Clip tightly to the strip
+                vCtx.beginPath();
+                vCtx.rect(0, py + 2, RS - 2, 12);
+                vCtx.clip();
+                vCtx.fillText(lbl, 1, py + 2);
                 vCtx.restore();
 
-                // Minor ticks
                 if (subPx >= 3) {
                     for (var d = 1; d < divs; d++) {
                         var my = py + Math.round(d * subPx);
