@@ -2461,7 +2461,14 @@ function setupUIEventListeners() {
     document.getElementById('opacity-slider').addEventListener('input', (e) => {
         state.opacity = parseInt(e.target.value);
         document.getElementById('opacity-val').innerText = `${state.opacity}%`;
-        applyStylesToSelection();
+        // Only change opacity — do NOT call applyStylesToSelection() which
+        // would overwrite gradient fills with the plain state.fillColor
+        const items = getSelectedDrawItems();
+        items.forEach(item => {
+            item.opacity = state.opacity / 100;
+        });
+        paper.view.draw();
+        saveState();
     });
 
     // --- Toolbar color target selection ---

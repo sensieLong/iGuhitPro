@@ -556,12 +556,44 @@
     function deleteSelectedArtboard() {
         const ab = window._selectedArtboard;
         if (!ab) return;
-        if (ab === 'main') { alert('Cannot delete the main artboard.'); return; }
-        if (!confirm('Delete this artboard and its visual elements?')) return;
-        try { ab.group?.remove(); } catch(_) {}
-        try { ab.rect?.remove(); }  catch(_) {}
+
+        function unlockAB() { if (window.artboardLayer) window.artboardLayer.locked = false; }
+        function lockAB() {
+            if (window.artboardLayer) window.artboardLayer.locked = true;
+            const dl = window.drawLayer ||
+                (paper.project.layers.find(l => !l.locked && l.name !== 'System Artboard'));
+            if (dl) { dl.locked = false; dl.activate(); window.drawLayer = dl; }
+        }
+
+        if (ab === 'main') {
+            if (!confirm('Delete the main artboard frame? Your artwork stays on canvas.')) return;
+            unlockAB();
+            try { if (window.artboardShadow?.isInserted()) window.artboardShadow.remove(); } catch(_) {}
+            try { if (window.artboardRect?.isInserted())   window.artboardRect.remove();   } catch(_) {}
+            try { if (window.gridGroup?.isInserted())      window.gridGroup.remove();       } catch(_) {}
+            window.artboardRect   = null;
+            window.artboardShadow = null;
+            window.gridGroup      = null;
+            // Remove isMain alias from multiArtboards
+            if (window.multiArtboards) {
+                const mainIdx = window.multiArtboards.findIndex(a => a.isMain);
+                if (mainIdx !== -1) window.multiArtboards.splice(mainIdx, 1);
+            }
+            lockAB();
+            window._selectedArtboard = null;
+            updateArtboardLabel();
+            paper.view.draw();
+            if (window.saveState) saveState();
+            return;
+        }
+
+        if (!confirm('Delete this artboard?')) return;
+        unlockAB();
+        try { ab.group?.remove();  } catch(_) {}
+        try { ab.rect?.remove();   } catch(_) {}
         try { ab.shadow?.remove(); } catch(_) {}
-        try { ab.grid?.remove(); }  catch(_) {}
+        try { ab.grid?.remove();   } catch(_) {}
+        lockAB();
         const idx = window.multiArtboards?.indexOf(ab);
         if (idx !== -1) window.multiArtboards.splice(idx, 1);
         window._selectedArtboard = null;
