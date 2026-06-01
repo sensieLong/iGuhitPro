@@ -1954,6 +1954,21 @@ function updateArtboardSize(width, height) {
         artboardLayer.addChild(artboardRect);
         artboardLayer.addChild(gridGroup);
         
+        // Sync window references so PDF export and artboard tool always see the current rect
+        window.artboardRect   = artboardRect;
+        window.artboardShadow = artboardShadow;
+        window.gridGroup      = gridGroup;
+
+        // Update isMain entry in multiArtboards if present
+        if (window.multiArtboards) {
+            const mainEntry = window.multiArtboards.find(a => a.isMain);
+            if (mainEntry) {
+                mainEntry.rect   = artboardRect;
+                mainEntry.shadow = artboardShadow;
+                mainEntry.grid   = gridGroup;
+            }
+        }
+
         artboardLayer.locked = true;
         
         if (drawLayer) drawLayer.activate();
@@ -4203,82 +4218,53 @@ function createArtboardObject(x, y, width, height) {
 }
 
 function addNewArtboardProper() {
-    // Always unlock artboard layer first so we can add items to it
     artboardLayer.locked = false;
     artboardLayer.activate();
 
-    // ── Helper: robustly restore draw layer as active ──
     function restoreDrawLayer() {
         artboardLayer.locked = true;
-        // Find the draw layer by reference first, then by name
         const dl = window.drawLayer || paper.project.layers.find(l => !l.locked && l.name !== 'System Artboard');
-        if (dl) {
-            dl.locked = false;
-            dl.activate();
-            window.drawLayer = dl;
-        }
+        if (dl) { dl.locked = false; dl.activate(); window.drawLayer = dl; }
     }
 
-    // ── First click: replace the initial main artboard instead of overlapping it ──
-    if (window.multiArtboards.length === 0) {
-        // Remove the current main artboard visuals
-        if (window.artboardShadow && window.artboardShadow.isInserted()) window.artboardShadow.remove();
-        if (window.artboardRect   && window.artboardRect.isInserted())   window.artboardRect.remove();
-        if (window.gridGroup      && window.gridGroup.isInserted())      window.gridGroup.remove();
+    // ── 2-column layout ──────────────────────────────────────────────
+    // Column 0 = main artboard (already at x=200, y=150)
+    // Column 1 = to the right of main artboard
+    // Row increases every 2 artboards (every 2 secondary entries)
+    //
+    // Layout (index = secondary artboard count before this one):
+    //   index 0 → col 1, row 0  (right of main)
+    //   index 1 → col 0, row 1  (below main)
+    //   index 2 → col 1, row 1  (below index 0)
+    //   index 3 → col 0, row 2  ...etc
+    //
+    // Main artboard origin: (200, 150)
+    const SPACING_X = 80;   // horizontal gap between artboards
+    const SPACING_Y = 100;  // vertical gap between artboard rows
+    const AW = state.artboardWidth;
+    const AH = state.artboardHeight;
+    const ORIGIN_X = 200;
+    const ORIGIN_Y = 150;
 
-        // Re-create the main artboard at its canonical position (200, 150)
-        window.artboardShadow = new paper.Path.Rectangle({
-            point: [204, 154],
-            size: [state.artboardWidth, state.artboardHeight],
-            fillColor: '#121212', opacity: 0.4
-        });
-        window.artboardShadow.name = 'artboardShadow';
-
-        window.artboardRect = new paper.Path.Rectangle({
-            point: [200, 150],
-            size: [state.artboardWidth, state.artboardHeight],
-            fillColor: state.artboardBgColor || '#ffffff',
-            strokeColor: '#555555', strokeWidth: 1
-        });
-        window.artboardRect.name = 'artboardRect';
-
-        // Rebuild grid
-        window.gridGroup = new paper.Group();
-        window.gridGroup.name = 'gridGroup';
-        const gs = 50;
-        for (let x = 200 + gs; x < 200 + state.artboardWidth; x += gs) {
-            window.gridGroup.addChild(new paper.Path.Line({ from: [x, 150], to: [x, 150 + state.artboardHeight], strokeColor: '#f0f0f0', strokeWidth: 1 }));
-        }
-        for (let y = 150 + gs; y < 150 + state.artboardHeight; y += gs) {
-            window.gridGroup.addChild(new paper.Path.Line({ from: [200, y], to: [200 + state.artboardWidth, y], strokeColor: '#f0f0f0', strokeWidth: 1 }));
-        }
-
-        // Push as first entry (isMain flag so layout skips it)
-        window.multiArtboards.push({
-            rect:   window.artboardRect,
-            shadow: window.artboardShadow,
-            grid:   window.gridGroup,
-            isMain: true
-        });
-
-        restoreDrawLayer();
-        paper.project.deselectAll();
-        paper.view.draw();
-        autoSaveProject();
-        return;
-    }
-
-    // ── Subsequent clicks: place new artboard to the right / below ──
     const extraCount = window.multiArtboards.filter(a => !a.isMain).length;
-    const cols    = 3;
-    const col     = extraCount % cols;
-    const row     = Math.floor(extraCount / cols);
-    const spacingX = 80;
-    const spacingY = 100;
-    const x = 200 + (col + 1) * (state.artboardWidth + spacingX);
-    const y = 150 + row       * (state.artboardHeight + spacingY);
 
-    const artboard = createArtboardObject(x, y, state.artboardWidth, state.artboardHeight);
+    // Map secondary index to (col, row) in 2-column grid
+    // Secondary 0 → (1,0), 1 → (0,1), 2 → (1,1), 3 → (0,2), 4 → (1,2)...
+    let col, row;
+    if (extraCount === 0) {
+        col = 1; row = 0; // first new artboard goes right of main
+    } else {
+        // After the first secondary, fill pairs: (0,row) then (1,row)
+        // secondary 1 → col=0,row=1; secondary 2 → col=1,row=1; etc.
+        const pairIndex = extraCount; // 1-based: 1=(0,1), 2=(1,1), 3=(0,2)...
+        row = Math.ceil(pairIndex / 2);
+        col = (pairIndex % 2 === 1) ? 0 : 1;
+    }
+
+    const x = ORIGIN_X + col * (AW + SPACING_X);
+    const y = ORIGIN_Y + row * (AH + SPACING_Y);
+
+    const artboard = createArtboardObject(x, y, AW, AH);
     artboard.bounds = artboard.rect.bounds;
     window.multiArtboards.push(artboard);
 
@@ -4306,17 +4292,26 @@ if (artboardBtn) {
 function exportAllArtboardsPDF() {
     // ── Collect artboards ──────────────────────────────
     const boards = [];
-    if (window.artboardRect && window.artboardRect.isInserted()) {
-        boards.push({ rect: window.artboardRect, name: 'Artboard 1' });
+
+    // Always find the main artboard fresh from the layer to avoid stale references
+    const mainRect = window.artboardRect && window.artboardRect.isInserted()
+        ? window.artboardRect
+        : (window.artboardLayer
+            ? window.artboardLayer.children['artboardRect'] || 
+              window.artboardLayer.children.find?.(c => c.name === 'artboardRect')
+            : null);
+
+    if (mainRect && mainRect.isInserted()) {
+        boards.push({ rect: mainRect, name: 'Artboard 1' });
     }
     if (window.multiArtboards && window.multiArtboards.length > 0) {
         window.multiArtboards.forEach((ab, i) => {
-            if (ab.isMain) return;
+            if (ab.isMain) return; // skip isMain alias — main artboard already added above
             if (ab.rect && ab.rect.isInserted())
                 boards.push({ rect: ab.rect, name: 'Artboard ' + (i + 2) });
         });
     }
-    if (!boards.length) { alert('No artboard found.'); return; }
+    if (!boards.length) { alert('No artboard found. Please check your artboard is visible.'); return; }
 
     // ── Colour helpers ─────────────────────────────────
     function paperColorToRGB(c) {
