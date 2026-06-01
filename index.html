@@ -25,11 +25,11 @@
         button { overflow: hidden; position: relative; }
 
         /* Rulers */
-        #ruler-corner { position:absolute; top:0; left:0; width:20px; height:20px; background:#2b2b2b; border-right:1px solid #3e3e3e; border-bottom:1px solid #3e3e3e; z-index:10; }
-        #ruler-h { position:absolute; top:0; left:20px; right:0; height:20px; background:#2b2b2b; border-bottom:1px solid #3e3e3e; overflow:hidden; z-index:10; }
-        #ruler-v { position:absolute; top:20px; left:0; bottom:0; width:20px; background:#2b2b2b; border-right:1px solid #3e3e3e; overflow:hidden; z-index:10; }
+        #ruler-corner { position:absolute; top:0; left:0; width:24px; height:24px; background:#2b2b2b; border-right:1px solid #3e3e3e; border-bottom:1px solid #3e3e3e; z-index:10; }
+        #ruler-h { position:absolute; top:0; left:24px; right:0; height:24px; background:#2b2b2b; border-bottom:1px solid #3e3e3e; overflow:hidden; z-index:10; }
+        #ruler-v { position:absolute; top:24px; left:0; bottom:0; width:24px; background:#2b2b2b; border-right:1px solid #3e3e3e; overflow:hidden; z-index:10; }
         #ruler-h canvas, #ruler-v canvas { display:block; }
-        .canvas-viewport-with-rulers { padding-top:20px; padding-left:20px; }
+        .canvas-viewport-with-rulers { padding-top:24px; padding-left:24px; }
 
         /* Smart guide lines */
         .smart-guide-line {
@@ -632,7 +632,7 @@
 
             var W  = hDiv.offsetWidth  || 800;
             var H  = vDiv.offsetHeight || 600;
-            var RS = 20;
+            var RS = 24; // ruler strip thickness — larger for readable numbers
 
             hCvs.width = W;  hCvs.height = RS;
             vCvs.width = RS; vCvs.height = H;
@@ -715,7 +715,7 @@
                 return String(Math.round(n * 10) / 10);
             }
 
-            hCtx.font = '9px Arial,sans-serif';
+            hCtx.font = 'bold 10px Arial,sans-serif';
             hCtx.textBaseline = 'top';
 
             // ── Horizontal ruler ──
@@ -773,18 +773,17 @@
                 vCtx.lineTo(RS, py + 0.5);
                 vCtx.stroke();
 
-                // Label — drawn horizontally at small size, fits in 20px strip
+                // Label — horizontal text, bold, clearly readable
                 var lbl = fmtLabel(u);
                 vCtx.save();
                 vCtx.fillStyle = '#ff8888';
-                vCtx.font = 'bold 7px Arial,sans-serif';
+                vCtx.font = 'bold 10px Arial,sans-serif';
                 vCtx.textAlign = 'left';
                 vCtx.textBaseline = 'top';
-                // Clip tightly to the strip
                 vCtx.beginPath();
-                vCtx.rect(0, py + 2, RS - 2, 12);
+                vCtx.rect(0, py + 1, RS - 1, 14);
                 vCtx.clip();
-                vCtx.fillText(lbl, 1, py + 2);
+                vCtx.fillText(lbl, 1, py + 1);
                 vCtx.restore();
 
                 if (subPx >= 3) {

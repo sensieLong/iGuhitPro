@@ -4610,6 +4610,12 @@ function exportAllArtboardsPDF() {
         w(`${num} 0 obj\n${content}\nendobj\n`);
     }
 
+    // ── PPI → PDF points conversion ───────────────────
+    // PDF uses points (1/72 inch). Our artboard is in paper-pixels at state.artboardResolution ppi.
+    // Scale factor: 72 / PPI converts paper-pixels → PDF points.
+    const PDF_PPI  = state.artboardResolution || 300;
+    const PX_TO_PT = 72 / PDF_PPI; // e.g. 72/300 = 0.24 pt per pixel
+
     // ── Per-page content streams ──────────────────────
     // Each page gets its own shadings dict so shading names don't conflict
     const contentStreams = [];
@@ -4624,7 +4630,11 @@ function exportAllArtboardsPDF() {
         const shadings = {};
 
         const ops = [];
-        // White page background
+        // Scale all subsequent coordinates from paper-pixels to PDF points.
+        // This single cm transform handles everything: paths, text, shadings.
+        ops.push(`${r3(PX_TO_PT)} 0 0 ${r3(PX_TO_PT)} 0 0 cm`);
+
+        // White page background (in paper-pixel coords — will be scaled by cm)
         ops.push('q');
         ops.push('1 1 1 rg');
         ops.push(`0 0 ${r3(W)} ${r3(H)} re`);
@@ -4670,7 +4680,9 @@ function exportAllArtboardsPDF() {
     // Write each page + its content stream
     for (let i = 0; i < boards.length; i++) {
         const bounds = boards[i].rect.bounds;
-        const W = r3(bounds.width), H = r3(bounds.height);
+        // MediaBox must be in PDF points: paper-pixels × (72/PPI)
+        const W_pt = r3(bounds.width  * PX_TO_PT);
+        const H_pt = r3(bounds.height * PX_TO_PT);
         const cNum = contentNums[i];
         const pNum = pageNums[i];
         const stream = contentStreams[i];
@@ -4680,15 +4692,14 @@ function exportAllArtboardsPDF() {
         const shadeKeys = Object.keys(shadings);
         let shadeResource = '';
         if (shadeKeys.length > 0) {
-            // Each shading dict is embedded inline in the Resources
             const shEntries = shadeKeys.map(k => `/${k} ${shadings[k]}`).join('\n');
             shadeResource = `\n   /Shading << ${shEntries} >>`;
         }
 
-        // Page object with Shading in Resources
+        // Page object — MediaBox in PDF points (8.5×11in = 612×792pt)
         writeObj(pNum,
             `<< /Type /Page\n   /Parent ${pagesNum} 0 R\n` +
-            `   /MediaBox [0 0 ${W} ${H}]\n` +
+            `   /MediaBox [0 0 ${W_pt} ${H_pt}]\n` +
             `   /Contents ${cNum} 0 R\n` +
             `   /Resources << /Font << /F1 ${fontNum} 0 R >>${shadeResource} >>\n>>`
         );

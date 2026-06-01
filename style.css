@@ -1386,24 +1386,24 @@ button { overflow: hidden; position: relative; }
 /* Rulers */
 #ruler-corner {
     position: absolute; top: 0; left: 0;
-    width: 20px; height: 20px;
+    width: 24px; height: 24px;
     background: #252525;
     border-right: 1px solid #3e3e3e;
     border-bottom: 1px solid #3e3e3e;
-    z-index: 200;
+    z-index: 10;
 }
 #ruler-h {
-    position: absolute; top: 0; left: 20px; right: 0; height: 20px;
+    position: absolute; top: 0; left: 24px; right: 0; height: 24px;
     background: #252525; border-bottom: 1px solid #3e3e3e;
-    overflow: hidden; z-index: 199;
+    overflow: hidden; z-index: 10;
 }
 #ruler-v {
-    position: absolute; top: 20px; left: 0; bottom: 0; width: 20px;
+    position: absolute; top: 24px; left: 0; bottom: 0; width: 24px;
     background: #252525; border-right: 1px solid #3e3e3e;
-    overflow: hidden; z-index: 199;
+    overflow: hidden; z-index: 10;
 }
 #ruler-h canvas, #ruler-v canvas { display: block; }
-.canvas-viewport-with-rulers { padding-top: 20px !important; padding-left: 20px !important; }
+.canvas-viewport-with-rulers { padding-top: 24px !important; padding-left: 24px !important; }
 
 /* Control bar contextual groups */
 .ctrl-ctx { display: none; }
