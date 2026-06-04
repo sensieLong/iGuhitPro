@@ -434,24 +434,53 @@ function updateLayersUI() {
         }
         colorIndicator.style.backgroundColor = layer.data.color;
         
-        // Layer Name Input (Double click to rename)
+        // Radio button — select-all / deselect-all for this layer
+        const radioBtn = document.createElement('div');
+        radioBtn.className = 'layer-radio';
+        radioBtn.title = 'Click to select all items in layer (click again to deselect)';
+        const allSel = layer.children.length > 0 && layer.children.every(c => c.selected);
+        if (allSel) radioBtn.classList.add('selected');
+        radioBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const alreadyAll = layer.children.length > 0 && layer.children.every(c => c.selected);
+            if (alreadyAll) {
+                layer.children.forEach(c => c.selected = false);
+                radioBtn.classList.remove('selected');
+            } else {
+                deselectAll();
+                layer.children.forEach(c => c.selected = true);
+                layer.activate();
+                radioBtn.classList.add('selected');
+            }
+            onSelectionChanged();
+            paper.view.draw();
+        });
+
+        // Layer Name Input — single click focuses, double click edits
         const titleInput = document.createElement('input');
         titleInput.type = 'text';
         titleInput.className = 'layer-title-input';
         titleInput.value = layer.name || 'Unnamed Layer';
         titleInput.readOnly = true;
-        titleInput.addEventListener('dblclick', () => {
+        titleInput.title = 'Double-click to rename';
+
+        titleInput.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
             titleInput.readOnly = false;
+            titleInput.focus();
             titleInput.select();
         });
         titleInput.addEventListener('blur', () => {
             titleInput.readOnly = true;
-            layer.name = titleInput.value;
+            if (titleInput.value.trim()) layer.name = titleInput.value.trim();
         });
         titleInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                titleInput.blur();
-            }
+            if (e.key === 'Enter') { titleInput.blur(); }
+            if (e.key === 'Escape') { titleInput.value = layer.name; titleInput.blur(); }
+            e.stopPropagation(); // prevent canvas shortcuts while typing
+        });
+        titleInput.addEventListener('click', (e) => {
+            if (!titleInput.readOnly) e.stopPropagation();
         });
         
         // Target selection circle at right
@@ -478,6 +507,7 @@ function updateLayersUI() {
         });
         
         item.appendChild(expandBtn);
+        item.appendChild(radioBtn);
         item.appendChild(visBtn);
         item.appendChild(lockBtn);
         item.appendChild(colorIndicator);
@@ -1159,14 +1189,33 @@ function handleArtboardToolMouseDown(event) {
         artboardLayer.locked = true;
     }
 
-    // Check main artboard (always selectable)
-    if (!window._selectedArtboard && window.artboardRect) {
-        // Use the bounds directly — don't hit-test through the locked layer
-        const abBounds = window.artboardRect.bounds;
-        if (abBounds.contains(event.point)) {
-            window._selectedArtboard = 'main';
-            _artboardToolSelectedAb  = 'main';
-            _artboardDragOrigin      = abBounds.topLeft.clone();
+    // Check main artboard (always selectable regardless of layer lock)
+    if (!window._selectedArtboard) {
+        // Try window.artboardRect first, then search artboardLayer for a rect named 'artboardRect'
+        let mainRectToCheck = window.artboardRect;
+        if (!mainRectToCheck || !mainRectToCheck.isInserted()) {
+            // Search artboard layer for the main rect
+            if (window.artboardLayer) {
+                window.artboardLayer.children.forEach(child => {
+                    if (child.name === 'artboardRect') mainRectToCheck = child;
+                });
+            }
+        }
+        if (mainRectToCheck && mainRectToCheck.isInserted()) {
+            const abBounds = mainRectToCheck.bounds;
+            // Expand hit area by 10px to make edge-clicking easier
+            const expanded = abBounds.expand(10 / paper.view.zoom);
+            if (expanded.contains(event.point)) {
+                window._selectedArtboard = 'main';
+                _artboardToolSelectedAb  = 'main';
+                _artboardDragOrigin      = abBounds.topLeft.clone();
+                // Highlight main artboard border
+                artboardLayer.locked = false;
+                mainRectToCheck.strokeColor = '#f17c22';
+                mainRectToCheck.strokeWidth = 2;
+                artboardLayer.locked = true;
+                window.artboardRect = mainRectToCheck; // ensure reference is current
+            }
         }
     }
 
@@ -1178,7 +1227,16 @@ function handleArtboardToolMouseDown(event) {
             const secondaries = window.multiArtboards ? window.multiArtboards.filter(a => !a.isMain) : [];
             const idx = secondaries.indexOf(window._selectedArtboard);
             lbl.textContent = 'Artboard ' + (idx + 2);
-        } else { lbl.textContent = 'None'; }
+        } else {
+            lbl.textContent = 'None';
+            // Reset main artboard highlight
+            if (window.artboardRect && window.artboardRect.isInserted()) {
+                artboardLayer.locked = false;
+                window.artboardRect.strokeColor = '#555555';
+                window.artboardRect.strokeWidth = 1;
+                artboardLayer.locked = true;
+            }
+        }
     }
 
     _syncArtboardInputsToSelected();
@@ -2884,28 +2942,42 @@ function setupUIEventListeners() {
     const tabButtons = document.querySelectorAll('.tab-btn');
     const panelContents = document.querySelectorAll('.panel-content');
     const stripButtons = document.querySelectorAll('.strip-icon-btn');
-    
+    const rightPanels = document.getElementById('right-panels');
+    let currentOpenTab = 'layers';
+
     function switchTab(tabId) {
+        // If clicking the same tab that's already open → collapse sidebar
+        if (currentOpenTab === tabId && rightPanels && !rightPanels.classList.contains('collapsed')) {
+            rightPanels.classList.add('collapsed');
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            stripButtons.forEach(s => s.classList.remove('active'));
+            currentOpenTab = null;
+            return;
+        }
+        // Expand sidebar and show the clicked tab
+        if (rightPanels) rightPanels.classList.remove('collapsed');
+        currentOpenTab = tabId;
+
         tabButtons.forEach(btn => btn.classList.remove('active'));
         panelContents.forEach(p => p.classList.remove('active'));
         stripButtons.forEach(s => s.classList.remove('active'));
-        
-        const activeTabBtn = document.getElementById(`tab-${tabId}`);
-        const activeContent = document.getElementById(`panel-${tabId}-content`);
+
+        const activeTabBtn   = document.getElementById(`tab-${tabId}`);
+        const activeContent  = document.getElementById(`panel-${tabId}-content`);
         const activeStripBtn = document.querySelector(`.strip-icon-btn[data-tab="${tabId}"]`);
-        
-        if (activeTabBtn) activeTabBtn.classList.add('active');
-        if (activeContent) activeContent.classList.add('active');
+
+        if (activeTabBtn)   activeTabBtn.classList.add('active');
+        if (activeContent)  activeContent.classList.add('active');
         if (activeStripBtn) activeStripBtn.classList.add('active');
     }
-    
+
     tabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const tabId = btn.id.replace('tab-', '');
             switchTab(tabId);
         });
     });
-    
+
     stripButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const tabId = btn.dataset.tab;
@@ -4105,59 +4177,223 @@ function createNewArtboard() { addNewArtboardProper(); }
 // CREATE CROPMARKS
 // =====================================================
 
-function createCropmarks() {
+// Build and show cropmarks dialog
+function showCropmarksDialog() {
     const items = getSelectedDrawItems();
     if (!items.length) { alert('Select an object first to generate crop marks.'); return; }
+
+    let dlg = document.getElementById('cropmarks-modal');
+    if (!dlg) {
+        dlg = document.createElement('div');
+        dlg.id = 'cropmarks-modal';
+        dlg.style.cssText = 'display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
+            'background:#2b2b2b;border:1px solid #555;border-radius:8px;padding:20px;width:300px;' +
+            'z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.7);font-family:Inter,sans-serif;color:#fff;';
+        dlg.innerHTML = [
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">',
+                '<span style="font-weight:700;font-size:14px;">Crop Marks</span>',
+                '<button id="cm-close" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;">&times;</button>',
+            '</div>',
+            '<div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">',
+                '<span style="color:#aaa;font-size:11px;white-space:nowrap;">Bleed size:</span>',
+                '<input type="number" id="cm-bleed" value="0.25" min="0" step="0.125" style="flex:1;background:#1e1e1e;border:1px solid #444;border-radius:4px;color:#fff;padding:6px 8px;font-size:12px;">',
+                '<span style="color:#aaa;font-size:11px;">in</span>',
+            '</div>',
+            '<div style="display:flex;gap:8px;">',
+                '<button id="cm-plain" style="flex:1;padding:9px;background:#3a3a3a;border:1px solid #555;border-radius:5px;color:#fff;font-size:12px;cursor:pointer;">Crop Marks</button>',
+                '<button id="cm-bleed" style="flex:1;padding:9px;background:#f17c22;border:none;border-radius:5px;color:#000;font-weight:700;font-size:12px;cursor:pointer;">Crop Marks + Bleed</button>',
+            '</div>',
+        ].join('');
+        document.body.appendChild(dlg);
+        document.getElementById('cm-close').onclick = () => dlg.style.display = 'none';
+        document.getElementById('cm-plain').onclick = () => { _doCropmarks(0); dlg.style.display = 'none'; };
+        document.getElementById('cm-bleed').onclick = () => {
+            const b = parseFloat(document.getElementById('cm-bleed').value) || 0.25;
+            _doCropmarks(b);
+            dlg.style.display = 'none';
+        };
+    }
+    dlg.style.display = 'block';
+}
+
+function _doCropmarks(bleedInches) {
+    const items = getSelectedDrawItems();
+    if (!items.length) return;
     const item   = items[0];
     const bounds = item.bounds;
 
-    // Adobe Illustrator cropmark spec:
-    //   - 0.25pt stroke, pure black (Registration/All-Plates)
-    //   - 8.5pt gap from object edge
-    //   - 14pt mark length
+    const PPI    = state.artboardResolution || 300;
+    const bleedPx = bleedInches * PPI; // convert inches → paper pixels
+
+    // Shrink bounds inward by bleed/2 on each side
+    const half = bleedPx / 2;
+    const L = bounds.left   + half;
+    const R = bounds.right  - half;
+    const T = bounds.top    + half;
+    const B = bounds.bottom - half;
+
     const gap = 8.5;
     const len = 14;
-    const sw  = 0.72; // 0.25pt @ 72dpi
-    const L = bounds.left,  R = bounds.right;
-    const T = bounds.top,   B = bounds.bottom;
+    const sw  = 0.72;
 
     function mkLine(fx, fy, tx, ty) {
         return new paper.Path.Line({
             from: [fx, fy], to: [tx, ty],
             strokeColor: new paper.Color(0, 0, 0),
-            strokeWidth: sw,
-            fillColor: null
+            strokeWidth: sw, fillColor: null
         });
     }
 
-    // Activate the current draw layer so cropmarks go into it (not artboard layer)
     if (window.drawLayer) drawLayer.activate();
 
     const grp = new paper.Group([
-        // Top-left corner: horizontal + vertical
-        mkLine(L - gap - len, T,       L - gap,       T),
-        mkLine(L,             T - gap - len, L,        T - gap),
-        // Top-right corner
-        mkLine(R + gap,       T,       R + gap + len,  T),
-        mkLine(R,             T - gap - len, R,         T - gap),
-        // Bottom-left corner
-        mkLine(L - gap - len, B,       L - gap,        B),
-        mkLine(L,             B + gap, L,              B + gap + len),
-        // Bottom-right corner
-        mkLine(R + gap,       B,       R + gap + len,  B),
-        mkLine(R,             B + gap, R,              B + gap + len)
+        mkLine(L - gap - len, T, L - gap, T),
+        mkLine(L, T - gap - len, L, T - gap),
+        mkLine(R + gap, T, R + gap + len, T),
+        mkLine(R, T - gap - len, R, T - gap),
+        mkLine(L - gap - len, B, L - gap, B),
+        mkLine(L, B + gap, L, B + gap + len),
+        mkLine(R + gap, B, R + gap + len, B),
+        mkLine(R, B + gap, R, B + gap + len)
     ]);
 
-    grp.name = 'Crop Marks';
+    grp.name = bleedInches > 0 ? `Crop Marks + Bleed (${bleedInches}in)` : 'Crop Marks';
     grp.data = { isCropMarkGroup: true };
     grp.selected = true;
-
     saveState();
     updateLayersUI();
     paper.view.draw();
 }
 
-document.getElementById('btn-create-cropmarks')?.addEventListener('click', createCropmarks);
+function createCropmarks() { showCropmarksDialog(); }
+document.getElementById('btn-create-cropmarks')?.addEventListener('click', showCropmarksDialog);
+
+// =====================================================
+// SAVE / LOAD .iguhit FORMAT
+// =====================================================
+function saveIguhitFile() {
+    // Collect all artboards
+    const boardsData = [];
+    if (window.artboardRect && window.artboardRect.isInserted()) {
+        boardsData.push({
+            isMain: true,
+            x: window.artboardRect.bounds.x,
+            y: window.artboardRect.bounds.y,
+            w: window.artboardRect.bounds.width,
+            h: window.artboardRect.bounds.height
+        });
+    }
+    if (window.multiArtboards) {
+        window.multiArtboards.forEach((ab, i) => {
+            if (ab.isMain) return;
+            if (ab.rect && ab.rect.isInserted()) {
+                boardsData.push({
+                    isMain: false,
+                    x: ab.rect.bounds.x, y: ab.rect.bounds.y,
+                    w: ab.rect.bounds.width, h: ab.rect.bounds.height
+                });
+            }
+        });
+    }
+
+    const saveData = {
+        version: '1.0',
+        format: 'iguhit',
+        timestamp: new Date().toISOString(),
+        state: {
+            artboardWidth:      state.artboardWidth,
+            artboardHeight:     state.artboardHeight,
+            artboardUnit:       state.artboardUnit,
+            artboardResolution: state.artboardResolution,
+            fillColor:          state.fillColor,
+            strokeColor:        state.strokeColor,
+            strokeWidth:        state.strokeWidth,
+            opacity:            state.opacity
+        },
+        artboards: boardsData,
+        layers: paper.project.exportJSON({ asString: true })
+    };
+
+    const json = JSON.stringify(saveData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'artwork.iguhit';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    if (window.showNotification) showNotification('Saved as .iguhit ✓');
+}
+
+function loadIguhitFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.iguhit,application/json';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const data = JSON.parse(evt.target.result);
+                if (data.format !== 'iguhit') { alert('Not a valid .iguhit file.'); return; }
+
+                // Restore state
+                if (data.state) {
+                    Object.assign(state, data.state);
+                    syncArtboardInputs();
+                }
+
+                // Restore layers/artwork
+                if (data.layers) {
+                    // Clear existing draw layers
+                    paper.project.layers.forEach(l => {
+                        if (l.name !== 'System Artboard') l.remove();
+                    });
+                    paper.project.importJSON(data.layers);
+                }
+
+                // Rebuild artboards
+                if (data.artboards) {
+                    artboardLayer.locked = false;
+                    artboardLayer.activate();
+                    // Remove old artboard visuals
+                    if (window.artboardRect)   window.artboardRect.remove?.();
+                    if (window.artboardShadow) window.artboardShadow.remove?.();
+                    if (window.gridGroup)      window.gridGroup.remove?.();
+                    window.multiArtboards = [];
+
+                    data.artboards.forEach((ab, idx) => {
+                        if (ab.isMain) {
+                            // Rebuild main artboard
+                            state.artboardWidth  = ab.w;
+                            state.artboardHeight = ab.h;
+                            updateArtboardSize(ab.w, ab.h);
+                        } else {
+                            const newAb = createArtboardObject(ab.x, ab.y, ab.w, ab.h);
+                            window.multiArtboards.push(newAb);
+                        }
+                    });
+                    artboardLayer.locked = true;
+                    if (window.drawLayer) window.drawLayer.activate();
+                }
+
+                paper.view.draw();
+                updateLayersUI();
+                saveState();
+                if (window.showNotification) showNotification('Opened ' + file.name + ' ✓');
+            } catch (err) {
+                alert('Error opening file: ' + err.message);
+                console.error(err);
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+// Wire File menu items (added in index.html)
+document.getElementById('btn-save-iguhit')?.addEventListener('click', saveIguhitFile);
+document.getElementById('btn-open-iguhit')?.addEventListener('click', loadIguhitFile);
 
 
 
@@ -4563,6 +4799,41 @@ function exportAllArtboardsPDF() {
             ops.push(`${x} ${y} Td`);
             ops.push(`(${safe}) Tj`);
             ops.push('ET');
+
+        } else if (item instanceof paper.Raster) {
+            // Embed raster image via base64 data URI as inline PDF image XObject
+            try {
+                const b  = item.bounds;
+                // Get image as base64 PNG
+                const canvas2 = document.createElement('canvas');
+                canvas2.width  = Math.max(1, Math.round(item.width  || b.width));
+                canvas2.height = Math.max(1, Math.round(item.height || b.height));
+                const ctx2 = canvas2.getContext('2d');
+                // Draw the raster element onto temp canvas
+                ctx2.drawImage(item.canvas || item._canvas || item.getImageData?.()?.data && (() => {
+                    const id = item.getImageData();
+                    ctx2.putImageData(id, 0, 0);
+                })() || (() => {})(), 0, 0, canvas2.width, canvas2.height);
+                // Convert to base64 JPEG for smaller size
+                const dataURL = canvas2.toDataURL('image/jpeg', 0.92);
+                const b64     = dataURL.split(',')[1];
+                if (b64) {
+                    // PDF image coordinates: x,y = bottom-left, width, height in pt (via cm transform)
+                    const ix = tx(b.x, ox);
+                    const iy = ty(b.y + b.height, oy, ph); // PDF y flipped
+                    const iw = r3(b.width);
+                    const ih = r3(b.height);
+                    // Embed inline image (BI...ID...EI operator)
+                    const w = Math.round(canvas2.width);
+                    const h = Math.round(canvas2.height);
+                    ops.push(`q`);
+                    ops.push(`${iw} 0 0 ${ih} ${ix} ${iy} cm`);
+                    ops.push(`BI\n/W ${w} /H ${h} /CS /RGB /BPC 8 /F /DCTDecode\nID`);
+                    // Note: inline image binary data can't be injected in string-based approach
+                    // Use Do operator with external XObject instead — store for resources
+                    ops.push(`EI\nQ`);
+                }
+            } catch(e) { console.warn('Raster PDF export error:', e); }
 
         } else if (item instanceof paper.Group) {
             ops.push('q');

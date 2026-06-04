@@ -279,8 +279,11 @@ body {
     padding: 3px 6px;
     font-family: var(--font-family);
     font-size: 11px;
-    height: 22px;
+    height: 26px;
     outline: none;
+    touch-action: manipulation;
+    -webkit-appearance: none;
+    cursor: text;
 }
 
 .number-input:focus, .text-input:focus, .select-input:focus {
@@ -1461,3 +1464,7 @@ button { overflow: hidden; position: relative; }
     font-weight: 600;
     font-size: 11px;
 }
+
+/* Collapsible right sidebar */
+.right-panels.collapsed .panels-container { display: none; }
+.right-panels.collapsed { width: 36px; }

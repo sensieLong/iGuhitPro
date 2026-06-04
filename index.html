@@ -77,9 +77,11 @@
                 <div class="menu-item">File
                     <div class="dropdown-menu">
                         <button id="btn-new"><i class="fa-solid fa-file"></i> New Document</button>
+                        <button id="btn-open-iguhit"><i class="fa-solid fa-folder-open"></i> Open .iguhit File...</button>
                         <button id="btn-import-svg"><i class="fa-solid fa-file-import"></i> Open / Import SVG...</button>
                         <button id="btn-import-ai"><i class="fa-brands fa-adobe"></i> Import Illustrator (.ai / .svg)...</button>
                         <hr>
+                        <button id="btn-save-iguhit"><i class="fa-solid fa-floppy-disk"></i> Save as .iguhit</button>
                         <button id="btn-export-svg"><i class="fa-solid fa-file-export"></i> Save / Export SVG</button>
                         <button id="btn-export-ai"><i class="fa-brands fa-adobe"></i> Export as Illustrator (.svg)</button>
                         <button id="btn-export-png"><i class="fa-solid fa-image"></i> Export as PNG</button>
@@ -418,6 +420,23 @@
                                 <button id="btn-flip-v" class="property-action-btn"><i class="fa-solid fa-arrows-up-down"></i> Flip V</button>
                             </div>
                         </div>
+                        <div class="property-section">
+                            <h3>Step &amp; Repeat</h3>
+                            <div class="property-grid" style="gap:6px;margin-bottom:8px;">
+                                <label style="font-size:10px;color:var(--color-text-muted);">Count:</label>
+                                <input type="number" id="step-repeat-count" class="number-input" value="3" min="1" max="100" style="width:100%;">
+                                <label style="font-size:10px;color:var(--color-text-muted);">ΔX (px):</label>
+                                <input type="number" id="step-repeat-dx" class="number-input" value="20" style="width:100%;">
+                                <label style="font-size:10px;color:var(--color-text-muted);">ΔY (px):</label>
+                                <input type="number" id="step-repeat-dy" class="number-input" value="0" style="width:100%;">
+                            </div>
+                            <button id="btn-step-repeat" class="property-action-btn" style="width:100%;justify-content:center;margin-bottom:4px;">
+                                <i class="fa-solid fa-layer-group"></i> Step &amp; Repeat
+                            </button>
+                            <button id="btn-repeat-last" class="property-action-btn" style="width:100%;justify-content:center;opacity:0.7;" title="Ctrl+D">
+                                <i class="fa-solid fa-rotate-right"></i> Repeat Last (Ctrl+D)
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -513,6 +532,8 @@
                 <span class="keypad-title"><i class="fa-solid fa-keyboard"></i> Modifiers</span>
             </div>
             <div class="keypad-buttons">
+                <button class="keypad-btn" title="Undo" onclick="if(window.undo)undo();" style="color:#ff9d4d;border-color:#f17c22;">↩ Undo</button>
+                <button class="keypad-btn" title="Redo" onclick="if(window.redo)redo();" style="color:#ff9d4d;border-color:#f17c22;">↪ Redo</button>
                 <button id="btn-virtual-ctrl" class="keypad-btn" title="Toggle Ctrl">Ctrl</button>
                 <button id="btn-virtual-alt" class="keypad-btn" title="Toggle Alt">Alt</button>
                 <button id="btn-virtual-shift" class="keypad-btn" title="Toggle Shift">Shift</button>

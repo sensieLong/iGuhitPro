@@ -263,10 +263,21 @@
             updateControlBar();
             scheduleArrowRedraw();
         };
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.addEventListener('click', () => setTimeout(updateControlBar, 20));
-        });
-        setTimeout(updateControlBar, 400);
+
+        // Wire all current + future tool buttons
+        function wireToolBtns() {
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                if (btn.dataset.cbWired) return;
+                btn.dataset.cbWired = '1';
+                btn.addEventListener('click', () => {
+                    // Use longer delay so app.js activeToolName is set first
+                    setTimeout(updateControlBar, 50);
+                });
+            });
+        }
+        wireToolBtns();
+        new MutationObserver(wireToolBtns).observe(document.body, { childList: true, subtree: true });
+        setTimeout(updateControlBar, 500);
     });
 
     // ═══════════════════════════════════════════════════════════════════
@@ -649,37 +660,19 @@
     // (deliberately left empty — app.js owns the one listener)
 
     // ═══════════════════════════════════════════════════════════════════
-    // 14. STEP AND REPEAT
+    // 14. STEP AND REPEAT — UI is in index.html, just wire the buttons
     // ═══════════════════════════════════════════════════════════════════
-    let lastStepAction = null; // stores last transform for repeat
+    let lastStepAction = null;
 
-    // Inject Step & Repeat UI into Properties panel
-    whenReady(() => {
-        const propPanel = document.getElementById('panel-properties-content');
-        if (!propPanel) return;
-        const sec = document.createElement('div');
-        sec.className = 'property-section';
-        sec.innerHTML = `
-            <h3>Step & Repeat</h3>
-            <div class="property-grid" style="gap:6px;">
-                <label>Count:</label>
-                <input type="number" id="step-repeat-count" class="number-input" value="3" min="1" max="100" style="width:100%;">
-                <label>ΔX:</label>
-                <input type="number" id="step-repeat-dx" class="number-input" value="20" style="width:100%;">
-                <label>ΔY:</label>
-                <input type="number" id="step-repeat-dy" class="number-input" value="0" style="width:100%;">
-            </div>
-            <button id="btn-step-repeat" class="property-action-btn" style="margin-top:8px;width:100%;justify-content:center;">
-                <i class="fa-solid fa-layer-group"></i> Step & Repeat
-            </button>
-            <button id="btn-repeat-last" class="property-action-btn" style="margin-top:4px;width:100%;justify-content:center;opacity:0.6;" title="Repeat last Step & Repeat">
-                <i class="fa-solid fa-rotate-right"></i> Repeat Last (Ctrl+D)
-            </button>`;
-        propPanel.querySelector('.panel-body')?.appendChild(sec);
-
-        document.getElementById('btn-step-repeat')?.addEventListener('click', doStepRepeat);
-        document.getElementById('btn-repeat-last')?.addEventListener('click', repeatLast);
-    });
+    // Wire buttons immediately and after DOM ready
+    function wireStepRepeat() {
+        const btn1 = document.getElementById('btn-step-repeat');
+        const btn2 = document.getElementById('btn-repeat-last');
+        if (btn1 && !btn1.dataset.wired) { btn1.dataset.wired='1'; btn1.addEventListener('click', doStepRepeat); }
+        if (btn2 && !btn2.dataset.wired) { btn2.dataset.wired='1'; btn2.addEventListener('click', repeatLast); }
+    }
+    document.addEventListener('DOMContentLoaded', wireStepRepeat);
+    whenReady(wireStepRepeat);
 
     function doStepRepeat() {
         if (!window.paper) return;
