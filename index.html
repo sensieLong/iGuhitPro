@@ -132,6 +132,7 @@
                     </div>
                 </div>
                 <div class="menu-item" id="btn-docs" style="cursor:pointer;"><i class="fa-solid fa-book" style="margin-right:5px;color:var(--color-text-muted);"></i> Docs</div>
+                <div class="menu-item" id="btn-ai-agent-menu" onclick="document.getElementById('ai-agent-panel').style.display=(document.getElementById('ai-agent-panel').style.display==='none'?'flex':'none');" style="background:linear-gradient(135deg,#f17c22,#d9660e);border-radius:5px;padding:4px 12px;cursor:pointer;color:#000;font-weight:700;font-size:11px;display:flex;align-items:center;gap:5px;margin-left:6px;border:none;"><span style="font-size:14px;">✦</span> AI Agent</div>
             </nav>
         </div>
         <div class="window-controls">
@@ -150,37 +151,12 @@
         </div>
         <div class="control-divider"></div>
 
-        <!-- TYPE TOOL CONTROLS -->
+        <!-- TYPE TOOL — toggle button shows floating panel -->
         <div class="control-group ctrl-ctx" id="type-tool-controls">
-            <span class="label"><i class="fa-solid fa-font"></i></span>
-            <select id="ctrl-font-family" class="select-input" style="width:130px;" title="Font Family">
-                <option value="Inter, sans-serif">Inter</option>
-                <option value="Arial, sans-serif">Arial</option>
-                <option value="Georgia, serif">Georgia</option>
-                <option value="'Times New Roman', serif">Times New Roman</option>
-                <option value="'Courier New', monospace">Courier New</option>
-                <option value="Verdana, sans-serif">Verdana</option>
-                <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
-                <option value="Impact, sans-serif">Impact</option>
-                <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
-                <option value="Tahoma, sans-serif">Tahoma</option>
-                <option value="'Palatino Linotype', serif">Palatino</option>
-                <option value="Garamond, serif">Garamond</option>
-                <option value="'Brush Script MT', cursive">Brush Script</option>
-            </select>
-            <input type="text" id="ctrl-font-size" value="24" class="number-input" style="width:42px;" title="Font Size">
-            <span class="unit">pt</span>
-            <select id="ctrl-font-weight" class="select-input" style="width:80px;" title="Font Weight">
-                <option value="400">Regular</option>
-                <option value="300">Light</option>
-                <option value="600" selected>Semibold</option>
-                <option value="700">Bold</option>
-                <option value="900">Black</option>
-            </select>
-            <select id="ctrl-font-style" class="select-input" style="width:68px;" title="Font Style">
-                <option value="normal">Normal</option>
-                <option value="italic">Italic</option>
-            </select>
+            <button id="btn-font-panel-toggle" title="Font Options" onclick="toggleFontPanel()" style="display:flex;align-items:center;gap:5px;background:linear-gradient(135deg,#f17c22,#d9660e);border:none;border-radius:5px;color:#000;font-size:11px;font-weight:700;padding:4px 10px;cursor:pointer;height:24px;">
+                <i class="fa-solid fa-font"></i> Font <i class="fa-solid fa-caret-down" id="font-panel-caret" style="font-size:9px;"></i>
+            </button>
+            <span id="font-panel-preview" style="font-size:11px;color:#aaa;margin-left:4px;max-width:140px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">Inter · 24pt</span>
         </div>
         <div class="control-divider ctrl-ctx" id="type-tool-divider"></div>
 
@@ -641,6 +617,7 @@
     <script src="advanced-features-addon.js"></script>
     <script src="iguhit-enhancements.js"></script>
     <script src="iguhit-features.js"></script>
+    <script src="iguhit-ai-agent.js"></script>
 
     <!-- ═══════════════════════════════════════════════
          RULER — self-contained, runs after Paper.js
@@ -1022,4 +999,399 @@
         }
 
     })();
+    </script>
+
+    <!-- ═══════════════════════════════════════════════
+         AI AGENT PANEL  (iGuhit AI Agent — Multi-Provider)
+    ════════════════════════════════════════════════ -->
+    <div id="ai-agent-panel" style="display:flex;position:fixed;bottom:70px;right:20px;width:400px;max-height:600px;background:#1e1e1e;border:1px solid #444;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,0.9);z-index:99999;font-family:Inter,sans-serif;flex-direction:column;overflow:hidden;resize:both;min-width:320px;min-height:260px;">
+        <!-- Header -->
+        <div id="ai-agent-header" style="background:#252525;border-bottom:1px solid #383838;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;cursor:grab;user-select:none;border-radius:12px 12px 0 0;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <div id="ai-header-icon" style="width:26px;height:26px;background:linear-gradient(135deg,#f17c22,#d9660e);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;box-shadow:0 2px 8px rgba(241,124,34,0.4);flex-shrink:0;">✦</div>
+                <div style="display:flex;flex-direction:column;line-height:1.2;">
+                    <span style="color:#fff;font-size:12px;font-weight:700;">iGuhit AI Agent</span>
+                    <span id="ai-provider-label" style="color:#888;font-size:9px;">Claude (Anthropic)</span>
+                </div>
+                <span style="background:#2ecc71;color:#000;font-size:8px;font-weight:700;padding:1px 5px;border-radius:4px;letter-spacing:0.5px;flex-shrink:0;">BETA</span>
+            </div>
+            <div style="display:flex;gap:2px;align-items:center;">
+                <button id="ai-settings-btn" title="Settings / Change Provider" style="background:none;border:none;color:#666;cursor:pointer;font-size:14px;padding:3px 7px;border-radius:4px;">⚙</button>
+                <button id="ai-clear-btn"    title="Clear chat"  style="background:none;border:none;color:#666;cursor:pointer;font-size:13px;padding:3px 7px;border-radius:4px;">⟳</button>
+                <button id="ai-min-btn"      title="Minimize"    style="background:none;border:none;color:#666;cursor:pointer;font-size:17px;padding:3px 7px;border-radius:4px;">−</button>
+                <button id="ai-close-btn"    title="Close"       style="background:none;border:none;color:#666;cursor:pointer;font-size:19px;padding:3px 7px;border-radius:4px;">×</button>
+            </div>
+        </div>
+        <!-- Body -->
+        <div id="ai-agent-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+            <!-- Messages -->
+            <div id="ai-messages" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth;"></div>
+            <!-- Input Row -->
+            <div style="display:flex;gap:8px;padding:10px 12px;border-top:1px solid #2e2e2e;align-items:flex-end;background:#1e1e1e;flex-shrink:0;">
+                <textarea id="ai-input" placeholder="Ask me to draw, edit, style, arrange… (Ctrl+Enter)" rows="2"
+                    style="flex:1;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:8px;color:#e0e0e0;font-size:12px;font-family:Inter,sans-serif;padding:8px 10px;resize:none;outline:none;line-height:1.5;min-height:36px;max-height:120px;transition:border-color .15s;"
+                    onfocus="this.style.borderColor=window.AI_PROVIDERS?AI_PROVIDERS[_aiProvider].color:'#f17c22'"
+                    onblur="this.style.borderColor='#3a3a3a'"></textarea>
+                <button id="ai-send-btn" onclick="sendAIMessage()" title="Send (Ctrl+Enter)"
+                    style="width:38px;height:38px;background:linear-gradient(135deg,#f17c22,#d9660e);border:none;border-radius:8px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(241,124,34,0.35);transition:transform .15s;"
+                    onmouseover="this.style.transform='scale(1.07)'" onmouseout="this.style.transform='scale(1)'">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════
+         FLOATING FONT PANEL
+    ════════════════════════════════════════════════ -->
+    <div id="font-panel" style="display:none;position:fixed;top:56px;left:320px;width:300px;background:#1e1e1e;border:1px solid #444;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.85);z-index:88888;font-family:Inter,sans-serif;overflow:hidden;user-select:none;">
+
+        <!-- Header / drag handle -->
+        <div id="font-panel-header" style="background:#252525;border-bottom:1px solid #383838;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;cursor:grab;">
+            <div style="display:flex;align-items:center;gap:7px;">
+                <div style="width:22px;height:22px;background:linear-gradient(135deg,#f17c22,#d9660e);border-radius:5px;display:flex;align-items:center;justify-content:center;">
+                    <i class="fa-solid fa-font" style="font-size:11px;color:#fff;"></i>
+                </div>
+                <span style="color:#fff;font-size:12px;font-weight:700;">Font Options</span>
+            </div>
+            <button onclick="toggleFontPanel()" style="background:none;border:none;color:#666;font-size:17px;cursor:pointer;padding:2px 5px;border-radius:4px;line-height:1;" title="Close">×</button>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:14px;display:flex;flex-direction:column;gap:11px;">
+
+            <!-- Font Family -->
+            <div style="display:flex;flex-direction:column;gap:4px;">
+                <label style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;">Font Family</label>
+                <select id="ctrl-font-family" style="background:#2b2b2b;border:1px solid #3a3a3a;border-radius:6px;color:#e0e0e0;font-size:12px;padding:7px 10px;outline:none;cursor:pointer;width:100%;">
+                    <option value="Inter, sans-serif">Inter</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="'Courier New', monospace">Courier New</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                    <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+                    <option value="Impact, sans-serif">Impact</option>
+                    <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+                    <option value="Tahoma, sans-serif">Tahoma</option>
+                    <option value="'Palatino Linotype', serif">Palatino</option>
+                    <option value="Garamond, serif">Garamond</option>
+                    <option value="'Brush Script MT', cursive">Brush Script</option>
+                </select>
+            </div>
+
+            <!-- Font Size -->
+            <div style="display:flex;flex-direction:column;gap:4px;">
+                <label style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;">Font Size</label>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <button onclick="adjustFontSize(-1)" style="width:28px;height:28px;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:5px;color:#e0e0e0;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">−</button>
+                    <input type="number" id="ctrl-font-size" value="24" min="1" max="1000"
+                        style="flex:1;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:6px;color:#e0e0e0;font-size:14px;font-weight:700;padding:5px 8px;outline:none;text-align:center;"
+                        oninput="applyFontFromPanel()" onchange="applyFontFromPanel()">
+                    <button onclick="adjustFontSize(1)" style="width:28px;height:28px;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:5px;color:#e0e0e0;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</button>
+                    <span style="font-size:11px;color:#666;flex-shrink:0;">pt</span>
+                </div>
+                <!-- Quick size chips -->
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">
+                    <span onclick="setFontSize(8)"   style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">8</span>
+                    <span onclick="setFontSize(10)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">10</span>
+                    <span onclick="setFontSize(12)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">12</span>
+                    <span onclick="setFontSize(14)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">14</span>
+                    <span onclick="setFontSize(18)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">18</span>
+                    <span onclick="setFontSize(24)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">24</span>
+                    <span onclick="setFontSize(36)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">36</span>
+                    <span onclick="setFontSize(48)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">48</span>
+                    <span onclick="setFontSize(60)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">60</span>
+                    <span onclick="setFontSize(72)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">72</span>
+                    <span onclick="setFontSize(96)"  style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">96</span>
+                    <span onclick="setFontSize(120)" style="display:inline-block;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:4px;padding:2px 6px;font-size:10px;color:#aaa;cursor:pointer;">120</span>
+                </div>
+            </div>
+
+            <!-- Weight + Style row -->
+            <div style="display:flex;gap:8px;">
+                <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+                    <label style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;">Weight</label>
+                    <select id="ctrl-font-weight" style="background:#2b2b2b;border:1px solid #3a3a3a;border-radius:6px;color:#e0e0e0;font-size:12px;padding:7px 8px;outline:none;cursor:pointer;width:100%;">
+                        <option value="300">Light</option>
+                        <option value="400">Regular</option>
+                        <option value="600" selected>Semibold</option>
+                        <option value="700">Bold</option>
+                        <option value="900">Black</option>
+                    </select>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+                    <label style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;">Style</label>
+                    <select id="ctrl-font-style" style="background:#2b2b2b;border:1px solid #3a3a3a;border-radius:6px;color:#e0e0e0;font-size:12px;padding:7px 8px;outline:none;cursor:pointer;width:100%;">
+                        <option value="normal">Normal</option>
+                        <option value="italic">Italic</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Style quick buttons -->
+            <div style="display:flex;gap:6px;">
+                <button id="fp-bold-btn" onclick="toggleFontWeight()" title="Bold"
+                    style="flex:1;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:6px;color:#aaa;font-size:13px;font-weight:700;padding:6px;cursor:pointer;transition:all .15s;">B</button>
+                <button id="fp-italic-btn" onclick="toggleFontItalic()" title="Italic"
+                    style="flex:1;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:6px;color:#aaa;font-size:13px;font-style:italic;padding:6px;cursor:pointer;transition:all .15s;"><em>I</em></button>
+            </div>
+
+            <!-- Preview -->
+            <div id="font-panel-live-preview" style="background:#2b2b2b;border:1px solid #3a3a3a;border-radius:6px;padding:10px 12px;min-height:38px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;overflow:hidden;text-align:center;">
+                The quick brown fox
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+    // ── Font Panel Logic ──────────────────────────────
+    var _fontPanelOpen = false;
+
+    function toggleFontPanel() {
+        var panel = document.getElementById('font-panel');
+        var caret = document.getElementById('font-panel-caret');
+        _fontPanelOpen = !_fontPanelOpen;
+        panel.style.display = _fontPanelOpen ? 'block' : 'none';
+        if (caret) caret.className = _fontPanelOpen ? 'fa-solid fa-caret-up' : 'fa-solid fa-caret-down';
+        if (_fontPanelOpen) updateFontPanelPreview();
+    }
+
+    // pt ↔ paper-pixel helpers (mirror of app.js ptToPaperPx / paperPxToPt)
+    function _ptToPx(pt) {
+        var ppi = (window.state && window.state.artboardResolution) ? window.state.artboardResolution : 300;
+        return pt * (ppi / 72);
+    }
+    function _pxToPt(px) {
+        var ppi = (window.state && window.state.artboardResolution) ? window.state.artboardResolution : 300;
+        return px * (72 / ppi);
+    }
+
+    function applyFontFromPanel() {
+        var ff  = document.getElementById('ctrl-font-family') ? document.getElementById('ctrl-font-family').value : null;
+        var fsPt= parseFloat(document.getElementById('ctrl-font-size') ? document.getElementById('ctrl-font-size').value : '24') || 24;
+        var fw  = document.getElementById('ctrl-font-weight') ? document.getElementById('ctrl-font-weight').value : null;
+        var fi  = document.getElementById('ctrl-font-style')  ? document.getElementById('ctrl-font-style').value  : null;
+
+        // Convert user pt value → paper-pixels for Paper.js
+        var fsPx = _ptToPx(fsPt);
+
+        // Update state so new text items use the current panel values
+        if (window.state) {
+            if (ff) window.state.fontFamily = ff;
+            window.state.fontSize   = fsPt;   // state always stores pt
+            if (fw) window.state.fontWeight = fw;
+            if (fi) window.state.fontStyle  = fi;
+        }
+
+        // Apply to any currently selected text items
+        var applied = false;
+        if (window.paper && window.getSelectedDrawItems) {
+            var items = window.getSelectedDrawItems();
+            items.forEach(function(item) {
+                if (!(item instanceof paper.PointText)) return;
+                if (ff) item.fontFamily = ff;
+                item.fontSize  = fsPx;   // must be paper-pixels
+                if (fw) item.fontWeight = fw;
+                if (fi) item.fontStyle  = fi;
+                applied = true;
+            });
+        }
+
+        if (applied) {
+            paper.view.draw();
+            if (window.saveState) saveState();
+        }
+        updateFontPanelPreview();
+        updateFontPanelPreviewButton();
+    }
+
+    function setFontSize(size) {
+        var inp = document.getElementById('ctrl-font-size');
+        if (inp) { inp.value = size; applyFontFromPanel(); }
+    }
+
+    function adjustFontSize(delta) {
+        var inp = document.getElementById('ctrl-font-size');
+        if (!inp) return;
+        var cur = parseFloat(inp.value) || 24;
+        // Smart stepping
+        var step = cur >= 72 ? 6 : cur >= 36 ? 2 : cur >= 20 ? 1 : 0.5;
+        inp.value = Math.max(1, cur + delta * step);
+        applyFontFromPanel();
+    }
+
+    function toggleFontWeight() {
+        var sel = document.getElementById('ctrl-font-weight');
+        if (!sel) return;
+        sel.value = (sel.value === '700' || sel.value === '900') ? '400' : '700';
+        var btn = document.getElementById('fp-bold-btn');
+        if (btn) {
+            var isBold = sel.value === '700' || sel.value === '900';
+            btn.style.background = isBold ? '#f17c22' : '#2b2b2b';
+            btn.style.color      = isBold ? '#000'    : '#aaa';
+            btn.style.borderColor= isBold ? '#f17c22' : '#3a3a3a';
+        }
+        applyFontFromPanel();
+    }
+
+    function toggleFontItalic() {
+        var sel = document.getElementById('ctrl-font-style');
+        if (!sel) return;
+        sel.value = sel.value === 'italic' ? 'normal' : 'italic';
+        var btn = document.getElementById('fp-italic-btn');
+        if (btn) {
+            var isItalic = sel.value === 'italic';
+            btn.style.background = isItalic ? '#f17c22' : '#2b2b2b';
+            btn.style.color      = isItalic ? '#000'    : '#aaa';
+            btn.style.borderColor= isItalic ? '#f17c22' : '#3a3a3a';
+        }
+        applyFontFromPanel();
+    }
+
+    function updateFontPanelPreview() {
+        var prev = document.getElementById('font-panel-live-preview');
+        if (!prev) return;
+        var ff = document.getElementById('ctrl-font-family')?.value || 'Inter';
+        var fs = Math.min(32, Math.max(12, parseFloat(document.getElementById('ctrl-font-size')?.value) || 24));
+        var fw = document.getElementById('ctrl-font-weight')?.value || '400';
+        var fi = document.getElementById('ctrl-font-style')?.value  || 'normal';
+        prev.style.fontFamily  = ff;
+        prev.style.fontSize    = fs + 'px';
+        prev.style.fontWeight  = fw;
+        prev.style.fontStyle   = fi;
+    }
+
+    function updateFontPanelPreviewButton() {
+        var lbl = document.getElementById('font-panel-preview');
+        if (!lbl) return;
+        var ff = (document.getElementById('ctrl-font-family')?.value || 'Inter').split(',')[0].replace(/['"]/g,'').trim();
+        var fs = document.getElementById('ctrl-font-size')?.value || '24';
+        var fw = document.getElementById('ctrl-font-weight')?.value;
+        var fi = document.getElementById('ctrl-font-style')?.value;
+        var extras = [];
+        if (fw === '700' || fw === '900') extras.push('Bold');
+        if (fi === 'italic') extras.push('Italic');
+        lbl.textContent = ff + ' · ' + fs + 'pt' + (extras.length ? ' · ' + extras.join(' ') : '');
+    }
+
+    // Wire panel selects
+    ['ctrl-font-family','ctrl-font-weight','ctrl-font-style'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', applyFontFromPanel);
+    });
+    var fsSel = document.getElementById('ctrl-font-size');
+    if (fsSel) {
+        fsSel.addEventListener('change', applyFontFromPanel);
+        fsSel.addEventListener('keydown', function(e) {
+            e.stopPropagation();
+            if (e.key === 'Enter') applyFontFromPanel();
+            if (e.key === 'ArrowUp')   { e.preventDefault(); adjustFontSize(1);  }
+            if (e.key === 'ArrowDown') { e.preventDefault(); adjustFontSize(-1); }
+        });
+        fsSel.addEventListener('keyup',    function(e){ e.stopPropagation(); });
+        fsSel.addEventListener('keypress', function(e){ e.stopPropagation(); });
+    }
+
+    // Sync panel from selection
+    window._syncFontPanelFromItem = function(item) {
+        if (!item || !(item instanceof paper.PointText)) return;
+        var ff = document.getElementById('ctrl-font-family');
+        var fs = document.getElementById('ctrl-font-size');
+        var fw = document.getElementById('ctrl-font-weight');
+        var fi = document.getElementById('ctrl-font-style');
+        if (ff && item.fontFamily) {
+            var match = Array.from(ff.options).find(function(o){ return o.value === item.fontFamily || o.text === item.fontFamily; });
+            if (match) ff.value = match.value;
+        }
+        if (fs && item.fontSize) {
+            // item.fontSize is in paper-pixels — convert to pt for the panel display
+            var ppi = (window.state && window.state.artboardResolution) ? window.state.artboardResolution : 300;
+            var ptVal = Math.round(item.fontSize * (72 / ppi));
+            fs.value = ptVal;
+        }
+        if (fw && item.fontWeight) fw.value = item.fontWeight;
+        if (fi && item.fontStyle)  fi.value = item.fontStyle;
+
+        // Update B/I buttons
+        var boldBtn   = document.getElementById('fp-bold-btn');
+        var italicBtn = document.getElementById('fp-italic-btn');
+        if (boldBtn) {
+            var isBold = fw && (fw.value === '700' || fw.value === '900');
+            boldBtn.style.background  = isBold ? '#f17c22' : '#2b2b2b';
+            boldBtn.style.color       = isBold ? '#000'    : '#aaa';
+            boldBtn.style.borderColor = isBold ? '#f17c22' : '#3a3a3a';
+        }
+        if (italicBtn) {
+            var isIt = fi && fi.value === 'italic';
+            italicBtn.style.background  = isIt ? '#f17c22' : '#2b2b2b';
+            italicBtn.style.color       = isIt ? '#000'    : '#aaa';
+            italicBtn.style.borderColor = isIt ? '#f17c22' : '#3a3a3a';
+        }
+        if (_fontPanelOpen) updateFontPanelPreview();
+        updateFontPanelPreviewButton();
+    };
+
+    // Open panel automatically when type tool is selected
+    document.addEventListener('DOMContentLoaded', function() {
+
+        // Hook the type tool button
+        var typeBtnObs = new MutationObserver(function() {
+            var btn = document.getElementById('tool-type');
+            if (btn && !btn.dataset.fontPanelWired) {
+                btn.dataset.fontPanelWired = '1';
+                btn.addEventListener('click', function() {
+                    // Show panel if not already open
+                    if (!_fontPanelOpen) toggleFontPanel();
+                });
+            }
+        });
+        typeBtnObs.observe(document.body, { childList: true, subtree: true });
+        var btn = document.getElementById('tool-type');
+        if (btn) {
+            btn.dataset.fontPanelWired = '1';
+            btn.addEventListener('click', function() {
+                if (!_fontPanelOpen) toggleFontPanel();
+            });
+        }
+
+        // Draggable
+        var panel  = document.getElementById('font-panel');
+        var handle = document.getElementById('font-panel-header');
+        var ox=0,oy=0,mx=0,my=0;
+        handle.addEventListener('mousedown', function(e) {
+            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'I') return;
+            e.preventDefault();
+            mx = e.clientX; my = e.clientY;
+            handle.style.cursor = 'grabbing';
+            document.onmouseup = function() {
+                document.onmouseup = null; document.onmousemove = null;
+                handle.style.cursor = 'grab';
+            };
+            document.onmousemove = function(ev) {
+                ox = mx - ev.clientX; oy = my - ev.clientY;
+                mx = ev.clientX;      my = ev.clientY;
+                panel.style.top  = Math.max(0, panel.offsetTop  - oy) + 'px';
+                panel.style.left = Math.max(0, panel.offsetLeft - ox) + 'px';
+            };
+        });
+
+        // Close panel when clicking outside (but not on the toggle button)
+        document.addEventListener('mousedown', function(e) {
+            if (!_fontPanelOpen) return;
+            var panel = document.getElementById('font-panel');
+            var toggleBtn = document.getElementById('btn-font-panel-toggle');
+            if (panel && !panel.contains(e.target) && toggleBtn && !toggleBtn.contains(e.target)) {
+                // Only close if clicking outside both panel and toggle
+                // Don't close on canvas click (user may be placing text)
+                var canvas = document.querySelector('canvas');
+                if (canvas && canvas.contains(e.target)) return;
+                toggleFontPanel();
+            }
+        });
+    });
+
+    // Patch window.__syncTypeFontControls to use new panel
+    window.__syncTypeFontControls = window._syncFontPanelFromItem;
     </script>

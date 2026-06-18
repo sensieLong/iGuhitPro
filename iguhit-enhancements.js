@@ -285,6 +285,11 @@
     // ═══════════════════════════════════════════════════════════════════
     function syncFontControls(item) {
         if (!(item instanceof paper.PointText)) return;
+        // Delegate to new floating panel sync if available
+        if (window._syncFontPanelFromItem) {
+            window._syncFontPanelFromItem(item);
+            return;
+        }
         const ff = document.getElementById('ctrl-font-family');
         const fs = document.getElementById('ctrl-font-size');
         const fw = document.getElementById('ctrl-font-weight');
@@ -293,7 +298,11 @@
             const m = Array.from(ff.options).find(o => o.value === item.fontFamily || o.text === item.fontFamily);
             if (m) ff.value = m.value;
         }
-        if (fs) fs.value = Math.round(item.fontSize || 24);
+        if (fs && item.fontSize) {
+            // item.fontSize is paper-pixels — display in pt
+            const ppi = (window.state && window.state.artboardResolution) ? window.state.artboardResolution : 300;
+            fs.value = Math.round(item.fontSize * (72 / ppi));
+        }
         if (fw && item.fontWeight) fw.value = item.fontWeight;
         if (fi && item.fontStyle)  fi.value = item.fontStyle;
     }
