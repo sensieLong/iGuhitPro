@@ -61,13 +61,7 @@ const state = {
     virtualShift: false,
     
     // Artboard styling
-    artboardBgColor: '#ffffff',
-
-    // Type Tool font state (fontSize in POINTS — user-facing unit)
-    fontFamily : 'Inter, sans-serif',
-    fontSize   : 24,     // in points (pt), NOT paper pixels
-    fontWeight : '400',
-    fontStyle  : 'normal'
+    artboardBgColor: '#ffffff'
 };
 
 // Paper.js objects references
@@ -1412,66 +1406,41 @@ function finishActivePath() {
 }
 
 // --- TYPE TOOL (T) ---
-// fontSize in state/panel is in POINTS (user-facing).
-// Paper.js renders fontSize in paper-pixels.
-// Conversion: paperPx = pt * (PPI / 72)
-function ptToPaperPx(pt) {
-    const ppi = (state && state.artboardResolution) || 300;
-    return pt * (ppi / 72);
-}
-function paperPxToPt(px) {
-    const ppi = (state && state.artboardResolution) || 300;
-    return px * (72 / ppi);
-}
-
 function handleTypeMouseDown(event) {
     deselectAll();
-
-    // Always read fresh from the panel elements first, then fall back to state
+    
+    // Get font settings from control bar (injected by enhancement pack)
     const fontFamilyEl = document.getElementById('ctrl-font-family');
-    const fontSizeEl   = document.getElementById('ctrl-font-size');
+    const fontSizeEl = document.getElementById('ctrl-font-size');
     const fontWeightEl = document.getElementById('ctrl-font-weight');
-    const fontStyleEl  = document.getElementById('ctrl-font-style');
-
-    // Read pt value from panel (what the user sees)
-    const fontFamily  = (fontFamilyEl && fontFamilyEl.value) ? fontFamilyEl.value : state.fontFamily;
-    const fontSizePt  = fontSizeEl    ? (parseFloat(fontSizeEl.value)  || state.fontSize)  : state.fontSize;
-    const fontWeight  = (fontWeightEl && fontWeightEl.value) ? fontWeightEl.value : state.fontWeight;
-    const fontStyleVal= (fontStyleEl  && fontStyleEl.value)  ? fontStyleEl.value  : state.fontStyle;
-
-    // Convert pt → paper-pixels for Paper.js
-    const fontSizePx = ptToPaperPx(fontSizePt);
-
-    // Update state with latest panel values
-    state.fontFamily = fontFamily;
-    state.fontSize   = fontSizePt;
-    state.fontWeight = fontWeight;
-    state.fontStyle  = fontStyleVal;
-
+    const fontStyleEl = document.getElementById('ctrl-font-style');
+    
+    const fontFamily = fontFamilyEl ? fontFamilyEl.value : 'Inter, sans-serif';
+    const fontSize = fontSizeEl ? (parseFloat(fontSizeEl.value) || 24) : 24;
+    const fontWeight = fontWeightEl ? fontWeightEl.value : '600';
+    const fontStyleVal = fontStyleEl ? fontStyleEl.value : 'normal';
+    
+    // Show a styled prompt dialog
     const textVal = prompt("Enter text:", "iGuhit Vector");
     if (textVal) {
-        if (window.drawLayer) window.drawLayer.activate();
-
         const textItem = new paper.PointText({
-            point     : event.point,
-            content   : textVal,
-            fontSize  : fontSizePx,      // paper-pixels (correct scale)
+            point: event.point,
+            content: textVal,
+            fontSize: fontSize,
             fontFamily: fontFamily,
             fontWeight: fontWeight,
-            fontStyle : fontStyleVal,
-            // Text color: use fill color from state, default black
-            fillColor : state.fillColorNone ? '#000000' : (state.fillColor || '#000000')
+            fontStyle: fontStyleVal
         });
-
-        // Don't call setupShapeStyles — it would clobber text fillColor with shape fill
-        // and doesn't apply font settings anyway.
-        textItem.opacity = state.opacity / 100;
+        setupShapeStyles(textItem);
         textItem.selected = true;
-
+        
+        // Store font data for re-sync
+        if (fontFamilyEl) textItem.fontFamily = fontFamily;
+        
         saveState();
         onSelectionChanged();
-
-        // Sync font panel to show the values of the new text item
+        
+        // Sync font controls with new item
         if (window.__syncTypeFontControls) window.__syncTypeFontControls(textItem);
     }
 }
@@ -2439,31 +2408,7 @@ function loadStateString(jsonString) {
         // Always ensure artboardUnit is set
         if (!state.artboardUnit) state.artboardUnit = 'in';
     }
-
-    // ── Re-sync window globals so PDF export always finds the artboard ──
-    window.artboardLayer  = artboardLayer;
-    window.artboardRect   = artboardRect;
-    window.artboardShadow = artboardShadow;
-
-    // Re-resolve multiArtboards references after importJSON
-    if (window.multiArtboards && window.multiArtboards.length > 0) {
-        // After importJSON, Paper.js creates new item instances.
-        // Re-scan all layers to find secondary artboard rects by name pattern.
-        const newAbs = [];
-        paper.project.layers.forEach(layer => {
-            if (layer.name !== 'System Artboard') return;
-            layer.children.forEach(child => {
-                if (child.name && child.name.startsWith('artboardRect-')) {
-                    // Secondary artboard rect
-                    const idx = parseInt(child.name.replace('artboardRect-','')) - 1;
-                    if (!isNaN(idx) && window.multiArtboards[idx]) {
-                        window.multiArtboards[idx].rect = child;
-                    }
-                }
-            });
-        });
-    }
-
+    
     // Re-resolve drawing layer
     const drawingLayers = paper.project.layers.filter(l => l.name !== 'System Artboard');
     if (drawingLayers.length === 0) {
@@ -4580,115 +4525,42 @@ if (artboardBtn) {
 
 
 // =====================================================
-// =====================================================
-// EXPORT MULTI ARTBOARD PDF — Fixed & Complete
-// Handles: paths, compound paths, groups, text,
-//          raster images, gradients, opacity, all layers
+// EXPORT MULTI ARTBOARD PDF — Pure-JS Raw Vector PDF
+// Writes real PDF path operators (m l c h S f etc.)
+// directly from Paper.js path data. No external library
+// beyond jsPDF for the file wrapper. Opens in Illustrator
+// as fully editable vector objects.
 // =====================================================
 
 function exportAllArtboardsPDF() {
-
-    // ── Robust artboard finder ────────────────────────
-    // Searches every possible location the artboard rect could be
-    function findMainArtboardRect() {
-        // 1. Direct window reference (most common)
-        if (window.artboardRect) {
-            try { if (window.artboardRect.isInserted()) return window.artboardRect; } catch(_) {}
-        }
-        // 2. Search artboardLayer children by name
-        if (window.artboardLayer) {
-            try {
-                const kids = window.artboardLayer.children;
-                for (let i = 0; i < kids.length; i++) {
-                    const c = kids[i];
-                    if (c && c.name === 'artboardRect') {
-                        try { if (c.isInserted()) { window.artboardRect = c; return c; } } catch(_) {}
-                    }
-                }
-            } catch(_) {}
-        }
-        // 3. Search ALL layers for any white/near-white filled rectangle named artboardRect
-        try {
-            for (const layer of paper.project.layers) {
-                for (let i = 0; i < layer.children.length; i++) {
-                    const c = layer.children[i];
-                    if (!c) continue;
-                    try {
-                        if (c.name === 'artboardRect' && c.isInserted()) {
-                            window.artboardRect = c;
-                            return c;
-                        }
-                    } catch(_) {}
-                }
-            }
-        } catch(_) {}
-        // 4. Fallback: build a synthetic bounds from state
-        if (window.state && window.state.artboardWidth && window.state.artboardHeight) {
-            const ox = window.artboardOffsetX || 200;
-            const oy = window.artboardOffsetY || 150;
-            // Create a synthetic rect-like object with just a bounds property
-            return {
-                _synthetic: true,
-                isInserted: () => true,
-                bounds: new paper.Rectangle(ox, oy, window.state.artboardWidth, window.state.artboardHeight)
-            };
-        }
-        return null;
-    }
-
-    // ── Collect artboards ────────────────────────────
+    // ── Collect artboards ──────────────────────────────
     const boards = [];
-    const mainRect = findMainArtboardRect();
-    if (mainRect) {
+
+    // Always find the main artboard fresh from the layer to avoid stale references
+    const mainRect = window.artboardRect && window.artboardRect.isInserted()
+        ? window.artboardRect
+        : (window.artboardLayer
+            ? window.artboardLayer.children['artboardRect'] || 
+              window.artboardLayer.children.find?.(c => c.name === 'artboardRect')
+            : null);
+
+    if (mainRect && mainRect.isInserted()) {
         boards.push({ rect: mainRect, name: 'Artboard 1' });
     }
-
-    // Add secondary artboards from multiArtboards
     if (window.multiArtboards && window.multiArtboards.length > 0) {
         window.multiArtboards.forEach((ab, i) => {
-            if (ab.isMain) return;
-            if (ab.rect) {
-                try {
-                    if (ab.rect.isInserted()) {
-                        boards.push({ rect: ab.rect, name: ab.name || ('Artboard ' + (boards.length + 1)) });
-                    }
-                } catch(_) {}
-            }
+            if (ab.isMain) return; // skip isMain alias — main artboard already added above
+            if (ab.rect && ab.rect.isInserted())
+                boards.push({ rect: ab.rect, name: 'Artboard ' + (i + 2) });
         });
     }
+    if (!boards.length) { alert('No artboard found. Please check your artboard is visible.'); return; }
 
-    if (!boards.length) {
-        // Last resort: derive from canvas state
-        if (window.state) {
-            const ox = 200, oy = 150;
-            const w  = window.state.artboardWidth  || 2550;
-            const h  = window.state.artboardHeight || 3300;
-            boards.push({
-                rect: {
-                    _synthetic: true,
-                    isInserted: () => true,
-                    bounds: new paper.Rectangle(ox, oy, w, h)
-                },
-                name: 'Artboard 1'
-            });
-        }
-        if (!boards.length) {
-            alert('No artboard found. Please make sure your document has an artboard.');
-            return;
-        }
-    }
-
-    // ── Helpers ───────────────────────────────────────
-    function r4(n) { return +n.toFixed(4); }
-
-    // Paper-pixel → PDF-point coordinate helpers
-    // ox,oy = artboard top-left in paper pixels; ph = artboard height in paper pixels
-    function tx(px, ox) { return r4(px - ox); }
-    function ty(py, oy, ph) { return r4(ph - (py - oy)); }   // flip Y axis
-
+    // ── Colour helpers ─────────────────────────────────
     function paperColorToRGB(c) {
         if (!c) return null;
-        if (c.type === 'gradient' || c.gradient) return null;
+        // Gradient colour — cannot convert directly
+        if (c.type === 'gradient' || (c.gradient)) return null;
         try {
             const rgb = c.convert('rgb');
             return [
@@ -4698,556 +4570,478 @@ function exportAllArtboardsPDF() {
             ];
         } catch (_) { return null; }
     }
+
+    // Resolve any Paper.js Color to an RGB triple safely
     function safeRGB(c, fallback) {
-        return paperColorToRGB(c) || (fallback || [0, 0, 0]);
+        const r = paperColorToRGB(c);
+        return r || (fallback || [0, 0, 0]);
     }
+
+    function r3(n) { return +n.toFixed(4); }
+    function tx(px, ox) { return r3(px - ox); }
+    function ty(py, oy, ph) { return r3(ph - (py - oy)); }
+
+    // Check if a Paper.js Color is a gradient
     function isGradient(c) {
         return c && (c.type === 'gradient' || c.gradient != null);
     }
+
+    // Extract gradient stops as [[r,g,b], offset] pairs
     function getGradientStops(c) {
-        if (!c || !c.gradient || !c.gradient.stops) return [{rgb:[0,0,0],offset:0},{rgb:[1,1,1],offset:1}];
+        if (!c || !c.gradient || !c.gradient.stops) return [[0,0,0],[1,1,1]];
         return c.gradient.stops.map(stop => {
-            let color, offset = 0;
-            if (Array.isArray(stop))     { color = stop[0]; offset = stop[1] || 0; }
-            else if (stop && stop.color !== undefined) { color = stop.color; offset = stop.offset || 0; }
-            else                         { color = stop; }
-            let rgb = [0,0,0];
+            let color, offset;
+            if (Array.isArray(stop)) {
+                color  = stop[0];
+                offset = stop[1] != null ? stop[1] : 0;
+            } else if (stop && stop.color !== undefined) {
+                color  = stop.color;
+                offset = stop.offset != null ? stop.offset : 0;
+            } else {
+                color  = stop;
+                offset = 0;
+            }
+            let rgb = [0, 0, 0];
             try {
                 if (typeof color === 'string') {
                     const pc = new paper.Color(color);
-                    rgb = [pc.red||0, pc.green||0, pc.blue||0];
+                    rgb = [pc.red || 0, pc.green || 0, pc.blue || 0];
                 } else if (color && typeof color === 'object') {
                     const pc = color.convert ? color.convert('rgb') : color;
-                    rgb = [pc.red||0, pc.green||0, pc.blue||0];
+                    rgb = [pc.red || 0, pc.green || 0, pc.blue || 0];
                 }
             } catch(_) {}
             return { rgb, offset: +offset };
         });
     }
 
-    // ── PDF string / byte assembly ────────────────────
-    const pdfParts = [];
-    let byteOffset = 0;
-    const offsets  = [];
-    let objNum = 0;
+    // ── PDF SHading (gradient) support ─────────────────
+    // We collect shading dicts and XObjects per page, then embed them.
+    let shadingCounter = 0;
+    const pageShading = []; // per-board: { dicts: {}, ops: [] }
 
-    function wStr(str) { pdfParts.push({ type:'str', data:str }); byteOffset += str.length; }
-    function wBin(buf)  { pdfParts.push({ type:'bin', data:buf }); byteOffset += buf.length; }
-    function nextObj()  { return ++objNum; }
-    function startObj(n){ offsets[n] = byteOffset; wStr(`${n} 0 obj\n`); }
-    function endObj()   { wStr('endobj\n'); }
-
-    // ── PDF constants ─────────────────────────────────
-    const PDF_PPI  = state.artboardResolution || 300;
-    const PX_TO_PT = 72 / PDF_PPI;
-
-    // ── Image XObjects ────────────────────────────────
-    // We collect image XObjects globally (they can be referenced across pages)
-    const imageXObjects = [];     // { num, width, height, jpegBytes }
-    let   imageCounter  = 0;
-
-    function rasterToXObject(item) {
-        try {
-            // Try to get the image via the Paper.js raster's element or canvas
-            let imgEl = item._image || item.image;
-            let srcCanvas = null;
-
-            if (imgEl && (imgEl.tagName === 'IMG' || imgEl.tagName === 'CANVAS')) {
-                // Draw via native element
-                srcCanvas = document.createElement('canvas');
-                srcCanvas.width  = Math.max(1, item.width  || item.bounds.width);
-                srcCanvas.height = Math.max(1, item.height || item.bounds.height);
-                const ctx = srcCanvas.getContext('2d');
-                ctx.drawImage(imgEl, 0, 0, srcCanvas.width, srcCanvas.height);
-            } else {
-                // Fallback: rasterize via Paper.js raster's own canvas element
-                // Paper.js Raster stores pixel data in ._canvas or exposes toCanvas()
-                const pCanvas = (typeof item.toCanvas === 'function')
-                    ? item.toCanvas()
-                    : (item._canvas || null);
-
-                if (pCanvas) {
-                    srcCanvas = pCanvas;
-                } else {
-                    // Last resort: crop the main Paper.js view canvas
-                    const viewCanvas = paper.view.element;
-                    const b  = item.bounds;
-                    const vp = paper.view.projectToView(b.topLeft);
-                    const z  = paper.view.zoom;
-                    const dpr = window.devicePixelRatio || 1;
-                    const sw = Math.round(b.width  * z * dpr);
-                    const sh = Math.round(b.height * z * dpr);
-                    srcCanvas = document.createElement('canvas');
-                    srcCanvas.width  = Math.max(1, sw);
-                    srcCanvas.height = Math.max(1, sh);
-                    const ctx = srcCanvas.getContext('2d');
-                    ctx.drawImage(viewCanvas,
-                        Math.round(vp.x * dpr), Math.round(vp.y * dpr), sw, sh,
-                        0, 0, srcCanvas.width, srcCanvas.height);
-                }
-            }
-
-            if (!srcCanvas) return null;
-
-            // Convert to JPEG byte array
-            const dataURL = srcCanvas.toDataURL('image/jpeg', 0.93);
-            const b64     = dataURL.split(',')[1];
-            if (!b64) return null;
-
-            const binary = atob(b64);
-            const bytes  = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-            const xObjNum = nextObj();
-            imageXObjects.push({
-                num   : xObjNum,
-                width : srcCanvas.width,
-                height: srcCanvas.height,
-                bytes : bytes,
-                name  : `Im${++imageCounter}`
-            });
-            return imageXObjects[imageXObjects.length - 1];
-        } catch(e) {
-            console.warn('PDF raster export:', e);
-            return null;
-        }
-    }
-
-    // ── Per-page content generation ───────────────────
-    // First pass: generate content streams and collect all images / shadings
-    const contentStreams  = [];
-    const pageShadeObjs   = [];
-    const pageImageMaps   = [];   // per page: [ {xobjRef, bounds} ]
-    let   shadingCounter  = 0;
-
+    // Build a PDF Shading dict string and return a /SH name
     function buildShading(fillColor, item, ox, oy, ph, shadings) {
         if (!isGradient(fillColor)) return null;
-        const isRadial = !!(fillColor.gradient && fillColor.gradient.radial);
+        const isRadial = fillColor.gradient && fillColor.gradient.radial;
         const stops    = getGradientStops(fillColor);
         if (!stops || stops.length < 2) return null;
+
+        // Get origin and destination in PDF coords
         let x0, y0, x1, y1;
         try {
-            x0 = tx(fillColor.origin.x,      ox); y0 = ty(fillColor.origin.y,      oy, ph);
-            x1 = tx(fillColor.destination.x, ox); y1 = ty(fillColor.destination.y, oy, ph);
+            x0 = tx(fillColor.origin.x,      ox);
+            y0 = ty(fillColor.origin.y,      oy, ph);
+            x1 = tx(fillColor.destination.x, ox);
+            y1 = ty(fillColor.destination.y, oy, ph);
         } catch(_) {
+            // Fall back to item bounding box
             const b = item.bounds;
             x0 = tx(b.x,           ox); y0 = ty(b.y + b.height, oy, ph);
             x1 = tx(b.x + b.width, ox); y1 = ty(b.y,            oy, ph);
         }
+
         const shName = `SH${++shadingCounter}`;
-        const c0 = stops[0].rgb.map(r4).join(' ');
-        const c1 = stops[stops.length - 1].rgb.map(r4).join(' ');
+
+        // Build a Function type 3 (stitching) or type 2 (single interval)
+        // For simplicity we use type 2 between first and last stop
+        const c0 = stops[0].rgb.map(r3).join(' ');
+        const c1 = stops[stops.length - 1].rgb.map(r3).join(' ');
+
         let dictStr;
         if (isRadial) {
             const r = Math.sqrt((x1-x0)*(x1-x0)+(y1-y0)*(y1-y0));
-            dictStr = `<< /ShadingType 3 /ColorSpace /DeviceRGB /Coords [${r4(x0)} ${r4(y0)} 0 ${r4(x0)} ${r4(y0)} ${r4(r)}] /Function << /FunctionType 2 /Domain [0 1] /C0 [${c0}] /C1 [${c1}] /N 1 >> /Extend [true true] >>`;
+            dictStr = [
+                `<< /ShadingType 3`,
+                `/ColorSpace /DeviceRGB`,
+                `/Coords [${r3(x0)} ${r3(y0)} 0 ${r3(x0)} ${r3(y0)} ${r3(r)}]`,
+                `/Function << /FunctionType 2 /Domain [0 1] /C0 [${c0}] /C1 [${c1}] /N 1 >>`,
+                `/Extend [true true]`,
+                `>>`
+            ].join('\n');
         } else {
-            dictStr = `<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [${r4(x0)} ${r4(y0)} ${r4(x1)} ${r4(y1)}] /Function << /FunctionType 2 /Domain [0 1] /C0 [${c0}] /C1 [${c1}] /N 1 >> /Extend [true true] >>`;
+            dictStr = [
+                `<< /ShadingType 2`,
+                `/ColorSpace /DeviceRGB`,
+                `/Coords [${r3(x0)} ${r3(y0)} ${r3(x1)} ${r3(y1)}]`,
+                `/Function << /FunctionType 2 /Domain [0 1] /C0 [${c0}] /C1 [${c1}] /N 1 >>`,
+                `/Extend [true true]`,
+                `>>`
+            ].join('\n');
         }
+
         shadings[shName] = dictStr;
         return shName;
     }
 
-    // Recursively convert a Paper.js item to PDF content stream ops
-    function itemToOps(item, ox, oy, ph, shadings, imageMap, depth) {
-        depth = depth || 0;
+    // ── PDF coordinate transform ───────────────────────
+    // ── Convert one Paper.js item to PDF content stream ops ──
+    function itemToOps(item, ox, oy, ph, shadings) {
         const ops = [];
-        try {
-            if (!item.visible || item.opacity === 0) return ops;
-        } catch(_) { return ops; }
 
-        const opacity = (item.opacity != null) ? item.opacity : 1;
-        const useGS   = opacity < 0.999;
-        const gsName  = useGS ? `GS${Math.round(opacity * 100)}` : null;
+        if (!item.visible || item.opacity === 0) return ops;
 
-        if (useGS) {
-            ops.push(`q`);
-            ops.push(`/${gsName} gs`);
-        }
+        const opacity = item.opacity != null ? item.opacity : 1;
+        if (opacity < 1) ops.push(`q\n/GS${Math.round(opacity * 100)} gs`);
 
-        // ── Path / CompoundPath ──────────────────────
         if (item instanceof paper.Path || item instanceof paper.CompoundPath) {
-            const paths = item instanceof paper.CompoundPath ? item.children : [item];
-            let pd = '';
+            const paths = item instanceof paper.CompoundPath
+                ? item.children : [item];
 
+            // Build path data
+            let pd = '';
             for (const path of paths) {
                 if (!path.segments || !path.segments.length) continue;
                 const segs = path.segments;
-                const fp   = segs[0].point;
-                pd += `${tx(fp.x,ox)} ${ty(fp.y,oy,ph)} m\n`;
+                const fp = segs[0].point;
+                pd += `${tx(fp.x, ox)} ${ty(fp.y, oy, ph)} m\n`;
 
                 for (let s = 1; s < segs.length; s++) {
-                    const prev = segs[s-1], curr = segs[s];
-                    const ho = prev.handleOut, hi = curr.handleIn;
-                    if ((ho && (ho.x||ho.y)) || (hi && (hi.x||hi.y))) {
-                        pd += `${tx(prev.point.x+(ho?ho.x:0),ox)} ${ty(prev.point.y+(ho?ho.y:0),oy,ph)} `;
-                        pd += `${tx(curr.point.x+(hi?hi.x:0),ox)} ${ty(curr.point.y+(hi?hi.y:0),oy,ph)} `;
-                        pd += `${tx(curr.point.x,ox)} ${ty(curr.point.y,oy,ph)} c\n`;
+                    const prev = segs[s - 1];
+                    const curr = segs[s];
+                    const ho   = prev.handleOut;
+                    const hi   = curr.handleIn;
+                    if ((ho && (ho.x !== 0 || ho.y !== 0)) ||
+                        (hi && (hi.x !== 0 || hi.y !== 0))) {
+                        const c1x = tx(prev.point.x + (ho ? ho.x : 0), ox);
+                        const c1y = ty(prev.point.y + (ho ? ho.y : 0), oy, ph);
+                        const c2x = tx(curr.point.x + (hi ? hi.x : 0), ox);
+                        const c2y = ty(curr.point.y + (hi ? hi.y : 0), oy, ph);
+                        const ex  = tx(curr.point.x, ox);
+                        const ey  = ty(curr.point.y, oy, ph);
+                        pd += `${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey} c\n`;
                     } else {
-                        pd += `${tx(curr.point.x,ox)} ${ty(curr.point.y,oy,ph)} l\n`;
+                        pd += `${tx(curr.point.x, ox)} ${ty(curr.point.y, oy, ph)} l\n`;
                     }
                 }
 
                 if (path.closed && segs.length > 1) {
-                    const last = segs[segs.length-1], first2 = segs[0];
-                    const ho = last.handleOut, hi = first2.handleIn;
-                    if ((ho && (ho.x||ho.y)) || (hi && (hi.x||hi.y))) {
-                        pd += `${tx(last.point.x+(ho?ho.x:0),ox)} ${ty(last.point.y+(ho?ho.y:0),oy,ph)} `;
-                        pd += `${tx(first2.point.x+(hi?hi.x:0),ox)} ${ty(first2.point.y+(hi?hi.y:0),oy,ph)} `;
-                        pd += `${tx(first2.point.x,ox)} ${ty(first2.point.y,oy,ph)} c\n`;
+                    const last   = segs[segs.length - 1];
+                    const first2 = segs[0];
+                    const ho = last.handleOut;
+                    const hi = first2.handleIn;
+                    if ((ho && (ho.x !== 0 || ho.y !== 0)) ||
+                        (hi && (hi.x !== 0 || hi.y !== 0))) {
+                        const c1x = tx(last.point.x + (ho ? ho.x : 0), ox);
+                        const c1y = ty(last.point.y + (ho ? ho.y : 0), oy, ph);
+                        const c2x = tx(first2.point.x + (hi ? hi.x : 0), ox);
+                        const c2y = ty(first2.point.y + (hi ? hi.y : 0), oy, ph);
+                        const ex  = tx(first2.point.x, ox);
+                        const ey  = ty(first2.point.y, oy, ph);
+                        pd += `${c1x} ${c1y} ${c2x} ${c2y} ${ex} ${ey} c\n`;
                     }
                     pd += 'h\n';
                 }
             }
 
-            if (!pd.trim()) { if (useGS) ops.push('Q'); return ops; }
+            if (!pd.trim()) { if (opacity < 1) ops.push('Q'); return ops; }
 
-            const hasFillGrad = isGradient(item.fillColor);
-            const fill        = hasFillGrad ? null : paperColorToRGB(item.fillColor);
-            const stroke      = paperColorToRGB(item.strokeColor);
-            const sw          = item.strokeWidth || 0;
-            const dashArr     = item.dashArray && item.dashArray.length ? `[${item.dashArray.join(' ')}] 0 d\n` : '';
-            const cap         = item.strokeCap === 'round' ? '1 J\n' : item.strokeCap === 'square' ? '2 J\n' : '0 J\n';
-            const join        = item.strokeJoin === 'round' ? '1 j\n' : item.strokeJoin === 'bevel' ? '2 j\n' : '0 j\n';
+            const hasFillGrad   = isGradient(item.fillColor);
+            const fill          = hasFillGrad ? null : paperColorToRGB(item.fillColor);
+            const stroke        = paperColorToRGB(item.strokeColor);
+            const sw            = item.strokeWidth || 0;
 
             if (hasFillGrad) {
+                // Render gradient fill via PDF shading:
+                // 1. Clip to path, 2. Paint shading, 3. Restore
                 const shName = buildShading(item.fillColor, item, ox, oy, ph, shadings);
                 if (shName) {
-                    ops.push(`q\n${pd.trim()}\nW n\n/${shName} sh\nQ`);
+                    ops.push('q');            // save
+                    ops.push(pd.trim());      // path
+                    ops.push('W n');          // clip to path, no fill
+                    ops.push(`/${shName} sh`);// paint shading
+                    ops.push('Q');            // restore
                 }
+                // Now draw stroke if any
                 if (stroke && sw > 0) {
-                    ops.push(`${pd.trim()}\n${stroke[0]} ${stroke[1]} ${stroke[2]} RG\n${r4(sw)} w\n${cap}${join}${dashArr}S`);
+                    ops.push(pd.trim());
+                    ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
+                    ops.push(`${r3(sw)} w`);
+                    if (item.dashArray && item.dashArray.length) {
+                        ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                    }
+                    ops.push('S');
                 }
             } else {
+                ops.push(pd.trim());
                 if (fill && stroke && sw > 0) {
-                    ops.push(`${pd.trim()}\n${fill[0]} ${fill[1]} ${fill[2]} rg\n${stroke[0]} ${stroke[1]} ${stroke[2]} RG\n${r4(sw)} w\n${cap}${join}${dashArr}B`);
+                    ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+                    ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
+                    ops.push(`${r3(sw)} w`);
+                    if (item.dashArray && item.dashArray.length) {
+                        ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                    }
+                    ops.push('B');
                 } else if (fill) {
-                    ops.push(`${pd.trim()}\n${fill[0]} ${fill[1]} ${fill[2]} rg\nf`);
+                    ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+                    ops.push('f');
                 } else if (stroke && sw > 0) {
-                    ops.push(`${pd.trim()}\n${stroke[0]} ${stroke[1]} ${stroke[2]} RG\n${r4(sw)} w\n${cap}${join}${dashArr}S`);
+                    ops.push(`${stroke[0]} ${stroke[1]} ${stroke[2]} RG`);
+                    ops.push(`${r3(sw)} w`);
+                    if (item.dashArray && item.dashArray.length) {
+                        ops.push(`[${item.dashArray.join(' ')}] 0 d`);
+                    }
+                    ops.push('S');
                 } else {
-                    ops.push(`${pd.trim()}\nn`);
+                    ops.push('n');
                 }
             }
 
-        // ── PointText — rasterize to JPEG for pixel-perfect font rendering ──
-        // This preserves font family, size, weight, style, and color exactly.
         } else if (item instanceof paper.PointText) {
-            try {
-                const textContent = item.content || '';
-                if (!textContent.trim()) { if (useGS) ops.push('Q'); return ops; }
+            const fill = safeRGB(item.fillColor, [0,0,0]);
+            const fs   = item.fontSize || 12;
+            const x    = tx(item.point.x, ox);
+            const y    = ty(item.point.y, oy, ph);
+            const safe = (item.content || '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+            ops.push('BT');
+            ops.push(`/F1 ${r3(fs)} Tf`);
+            ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+            ops.push(`${x} ${y} Td`);
+            ops.push(`(${safe}) Tj`);
+            ops.push('ET');
 
-                const fsPx    = item.fontSize   || 12;
-                const ff      = item.fontFamily || 'Inter, sans-serif';
-                const fw      = item.fontWeight || '400';
-                const fi      = item.fontStyle  || 'normal';
-                const fillRGB = safeRGB(item.fillColor, [0, 0, 0]);
-                const fillCSS = `rgb(${Math.round(fillRGB[0]*255)},${Math.round(fillRGB[1]*255)},${Math.round(fillRGB[2]*255)})`;
-                const fontStr = `${fi} ${fw} ${fsPx}px ${ff}`;
-                const lines   = textContent.split('\n');
-                const lineH   = fsPx * 1.35;
-
-                // Measure
-                const mc  = document.createElement('canvas');
-                const mct = mc.getContext('2d');
-                mct.font  = fontStr;
-                let maxW  = 0;
-                lines.forEach(l => { const w = mct.measureText(l).width; if (w > maxW) maxW = w; });
-                const pad    = Math.ceil(fsPx * 0.2);
-                const totalW = Math.max(1, Math.ceil(maxW) + pad * 2);
-                const totalH = Math.max(1, Math.ceil(lineH * lines.length) + pad * 2);
-
-                // Render on white canvas → JPEG
-                const tc  = document.createElement('canvas');
-                tc.width  = totalW;
-                tc.height = totalH;
-                const tct = tc.getContext('2d');
-                tct.fillStyle = '#ffffff';
-                tct.fillRect(0, 0, totalW, totalH);
-                tct.font         = fontStr;
-                tct.fillStyle    = fillCSS;
-                tct.textBaseline = 'alphabetic';
-                lines.forEach((line, li) => {
-                    tct.fillText(line, pad, pad + fsPx + li * lineH);
-                });
-
-                const jpgURL   = tc.toDataURL('image/jpeg', 0.97);
-                const jpgB64   = jpgURL.split(',')[1];
-                if (!jpgB64) { if (useGS) ops.push('Q'); return ops; }
-                const jpgBin   = atob(jpgB64);
-                const jpgBytes = new Uint8Array(jpgBin.length);
-                for (let bi = 0; bi < jpgBin.length; bi++) jpgBytes[bi] = jpgBin.charCodeAt(bi);
-
-                const xObjNum = nextObj();
-                const xName   = `TIm${imageXObjects.length + 1}`;
-                imageXObjects.push({ num: xObjNum, width: totalW, height: totalH, bytes: jpgBytes, name: xName });
-
-                // Place at item bounds position (paper-pixel coords → PDF user-space via CTM)
-                const ix  = tx(item.bounds.x - pad, ox);
-                const iy  = ty(item.bounds.y + totalH - pad, oy, ph);
-                ops.push('q');
-                ops.push(`${r4(totalW)} 0 0 ${r4(totalH)} ${r4(ix)} ${r4(iy)} cm`);
-                ops.push(`/${xName} Do`);
-                ops.push('Q');
-                imageMap.push({ xobj: imageXObjects[imageXObjects.length - 1] });
-
-            } catch(textErr) {
-                console.warn('PDF text raster error:', textErr);
-            }
-
-        // ── Raster image ─────────────────────────────
         } else if (item instanceof paper.Raster) {
-            const xobj = rasterToXObject(item);
-            if (xobj) {
+            // Embed raster image via base64 data URI as inline PDF image XObject
+            try {
                 const b  = item.bounds;
-                const ix = tx(b.x,            ox);
-                const iy = ty(b.y + b.height,  oy, ph);   // bottom-left in PDF coords
-                const iw = r4(b.width);
-                const ih = r4(b.height);
-                // Apply transform: position + scale image
-                ops.push(`q`);
-                ops.push(`${iw} 0 0 ${ih} ${ix} ${iy} cm`);
-                ops.push(`/${xobj.name} Do`);
-                ops.push(`Q`);
-                imageMap.push({ xobj, ix, iy, iw, ih });
-            }
+                // Get image as base64 PNG
+                const canvas2 = document.createElement('canvas');
+                canvas2.width  = Math.max(1, Math.round(item.width  || b.width));
+                canvas2.height = Math.max(1, Math.round(item.height || b.height));
+                const ctx2 = canvas2.getContext('2d');
+                // Draw the raster element onto temp canvas
+                ctx2.drawImage(item.canvas || item._canvas || item.getImageData?.()?.data && (() => {
+                    const id = item.getImageData();
+                    ctx2.putImageData(id, 0, 0);
+                })() || (() => {})(), 0, 0, canvas2.width, canvas2.height);
+                // Convert to base64 JPEG for smaller size
+                const dataURL = canvas2.toDataURL('image/jpeg', 0.92);
+                const b64     = dataURL.split(',')[1];
+                if (b64) {
+                    // PDF image coordinates: x,y = bottom-left, width, height in pt (via cm transform)
+                    const ix = tx(b.x, ox);
+                    const iy = ty(b.y + b.height, oy, ph); // PDF y flipped
+                    const iw = r3(b.width);
+                    const ih = r3(b.height);
+                    // Embed inline image (BI...ID...EI operator)
+                    const w = Math.round(canvas2.width);
+                    const h = Math.round(canvas2.height);
+                    ops.push(`q`);
+                    ops.push(`${iw} 0 0 ${ih} ${ix} ${iy} cm`);
+                    ops.push(`BI\n/W ${w} /H ${h} /CS /RGB /BPC 8 /F /DCTDecode\nID`);
+                    // Note: inline image binary data can't be injected in string-based approach
+                    // Use Do operator with external XObject instead — store for resources
+                    ops.push(`EI\nQ`);
+                }
+            } catch(e) { console.warn('Raster PDF export error:', e); }
 
-        // ── Group (recurse) ───────────────────────────
         } else if (item instanceof paper.Group) {
             ops.push('q');
-            const children = item.children || [];
-            for (const child of children) {
-                if (child.visible !== false) {
-                    ops.push(...itemToOps(child, ox, oy, ph, shadings, imageMap, depth+1));
-                }
-            }
-            ops.push('Q');
-
-        // ── SymbolItem ────────────────────────────────
-        } else if (item.className === 'SymbolItem' && item.definition) {
-            ops.push('q');
-            const def = item.definition.item;
-            if (def) {
-                ops.push(...itemToOps(def, ox, oy, ph, shadings, imageMap, depth+1));
-            }
+            item.children.forEach(child => {
+                ops.push(...itemToOps(child, ox, oy, ph, shadings));
+            });
             ops.push('Q');
         }
 
-        if (useGS) ops.push('Q');
+        if (opacity < 1) ops.push('Q');
         return ops;
     }
 
-    // Safe isInserted check — never throws even after undo/redo
-    function safeIsInserted(item) {
-        try { return item && item.isInserted && item.isInserted(); } catch(_) { return false; }
+    // ── Build raw PDF bytes ────────────────────────────
+    // We write a minimal but spec-compliant PDF manually.
+    // Structure: header, objects (pages, content streams), xref, trailer.
+
+    const pdfParts = []; // array of strings/Uint8Arrays
+    let offset = 0;
+    const offsets = [];
+
+    function w(str) {
+        pdfParts.push(str);
+        offset += str.length;
     }
 
-    // Safe bounds getter
-    function safeBounds(item) {
-        try { return item && item.bounds ? item.bounds : null; } catch(_) { return null; }
+    // Write header
+    w('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'); // magic bytes signal binary content
+
+    // Object counter (1-based)
+    let objNum = 0;
+    function nextObj() { return ++objNum; }
+
+    const catNum   = nextObj(); // 1 - catalog
+    const pagesNum = nextObj(); // 2 - pages dict
+    const fontNum  = nextObj(); // 3 - font (Helvetica)
+
+    // We'll fill page object numbers after we know how many pages
+    const pageNums = boards.map(() => nextObj());
+
+    // Content stream object numbers
+    const contentNums = boards.map(() => nextObj());
+
+    // Write font object
+    function writeObj(num, content) {
+        offsets[num] = offset;
+        w(`${num} 0 obj\n${content}\nendobj\n`);
     }
 
-    // Build content streams for each artboard
+    // ── PPI → PDF points conversion ───────────────────
+    // PDF uses points (1/72 inch). Our artboard is in paper-pixels at state.artboardResolution ppi.
+    // Scale factor: 72 / PPI converts paper-pixels → PDF points.
+    const PDF_PPI  = state.artboardResolution || 300;
+    const PX_TO_PT = 72 / PDF_PPI; // e.g. 72/300 = 0.24 pt per pixel
+
+    // ── Per-page content streams ──────────────────────
+    // Each page gets its own shadings dict so shading names don't conflict
+    const contentStreams = [];
+    const pageShadeObjs = []; // array of {name: dictStr} per page
+
     for (let i = 0; i < boards.length; i++) {
-        // Safely get bounds — may fail if the rect was affected by undo
-        let bounds;
-        try {
-            bounds = boards[i].rect.bounds;
-        } catch(_) {
-            // Try re-finding the main artboard rect
-            const refound = findMainArtboardRect();
-            if (refound) {
-                try { bounds = refound.bounds; } catch(_2) { continue; }
-            } else { continue; }
-        }
-        if (!bounds) continue;
+        const bounds = boards[i].rect.bounds;
+        const W = bounds.width, H = bounds.height;
+        const ox = bounds.x,    oy = bounds.y;
 
-        const W  = bounds.width;
-        const H  = bounds.height;
-        const ox = bounds.x;
-        const oy = bounds.y;
-
+        // Per-page shadings dict — populated by itemToOps via buildShading
         const shadings = {};
-        const imageMap = [];
+
         const ops = [];
+        // Scale all subsequent coordinates from paper-pixels to PDF points.
+        // This single cm transform handles everything: paths, text, shadings.
+        ops.push(`${r3(PX_TO_PT)} 0 0 ${r3(PX_TO_PT)} 0 0 cm`);
 
-        // Global CTM: paper-pixels → PDF points
-        ops.push(`${r4(PX_TO_PT)} 0 0 ${r4(PX_TO_PT)} 0 0 cm`);
+        // White page background (in paper-pixel coords — will be scaled by cm)
+        ops.push('q');
+        ops.push('1 1 1 rg');
+        ops.push(`0 0 ${r3(W)} ${r3(H)} re`);
+        ops.push('f');
+        ops.push('Q');
 
-        // White artboard background
-        ops.push('q\n1 1 1 rg\n0 0 ' + r4(W) + ' ' + r4(H) + ' re\nf\nQ');
-
-        // Walk ALL visible layers (skip the locked artboard/system layer)
-        try {
-            paper.project.layers.forEach(layer => {
-                try {
-                    if (layer === window.artboardLayer) return;
-                    if (layer.name === 'System Artboard') return;
-                    if (layer.visible === false) return;
-
-                    const kids = layer.children;
-                    for (let k = 0; k < kids.length; k++) {
-                        const child = kids[k];
-                        if (!child) continue;
-                        if (!safeIsInserted(child)) continue;
-                        if (child.visible === false) continue;
-
-                        // Include if overlaps or touches the artboard (generous 10px margin)
-                        const cb = safeBounds(child);
-                        if (cb) {
-                            const pad = 10;
-                            const outside = (cb.right  < bounds.left   - pad ||
-                                             cb.left   > bounds.right  + pad ||
-                                             cb.bottom < bounds.top    - pad ||
-                                             cb.top    > bounds.bottom + pad);
-                            if (outside) continue;
-                        }
-
-                        try {
-                            ops.push('q');
-                            ops.push(...itemToOps(child, ox, oy, H, shadings, imageMap, 0));
-                            ops.push('Q');
-                        } catch(itemErr) {
-                            console.warn('PDF: skipping item due to error:', itemErr);
-                        }
-                    }
-                } catch(layerErr) {
-                    console.warn('PDF: skipping layer due to error:', layerErr);
+        // Draw all items from draw layers
+        paper.project.layers.forEach(layer => {
+            if (layer === window.artboardLayer) return;
+            if (layer.name === 'System Artboard') return;
+            layer.children.forEach(child => {
+                if (!child.isInserted() || !child.visible) return;
+                if (child.bounds && child.bounds.intersects(bounds)) {
+                    ops.push('q');
+                    ops.push(...itemToOps(child, ox, oy, H, shadings));
+                    ops.push('Q');
                 }
             });
-        } catch(allLayersErr) {
-            console.warn('PDF: layer iteration error:', allLayersErr);
-        }
+        });
 
         contentStreams.push(ops.join('\n'));
         pageShadeObjs.push(shadings);
-        pageImageMaps.push(imageMap);
     }
 
-    // ── Write all PDF objects ─────────────────────────
-    wStr('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+    // ── Write objects ─────────────────────────────────
 
-    const catNum   = nextObj();   // catalog
-    const pagesNum = nextObj();   // pages dict
-    const fontNum  = nextObj();   // Helvetica font
+    // Catalog
+    writeObj(catNum,
+        `<< /Type /Catalog\n   /Pages ${pagesNum} 0 R\n>>`
+    );
 
-    // Reserve object numbers for pages and content streams
-    const pageNums    = boards.map(() => nextObj());
-    const contentNums = boards.map(() => nextObj());
+    // Pages (parent)
+    const kidsStr = pageNums.map(n => `${n} 0 R`).join(' ');
+    writeObj(pagesNum,
+        `<< /Type /Pages\n   /Kids [${kidsStr}]\n   /Count ${boards.length}\n>>`
+    );
 
-    // Write catalog
-    startObj(catNum);
-    wStr(`<< /Type /Catalog /Pages ${pagesNum} 0 R >>\n`);
-    endObj();
+    // Font (Helvetica — standard PDF font, always available)
+    writeObj(fontNum,
+        `<< /Type /Font\n   /Subtype /Type1\n   /BaseFont /Helvetica\n   /Encoding /WinAnsiEncoding\n>>`
+    );
 
-    // Write pages parent
-    startObj(pagesNum);
-    wStr(`<< /Type /Pages /Kids [${pageNums.map(n=>n+' 0 R').join(' ')}] /Count ${boards.length} >>\n`);
-    endObj();
-
-    // Write font
-    startObj(fontNum);
-    wStr(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\n`);
-    endObj();
-
-    // Write image XObjects (all stored as JPEG — DCTDecode)
-    for (const xobj of imageXObjects) {
-        startObj(xobj.num);
-        wStr(`<< /Type /XObject /Subtype /Image /Width ${xobj.width} /Height ${xobj.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${xobj.bytes.length} >>\nstream\n`);
-        wBin(xobj.bytes);
-        wStr('\nendstream\n');
-        endObj();
-    }
-
-    // Write each page + content stream
+    // Write each page + its content stream
     for (let i = 0; i < boards.length; i++) {
-        const bounds   = boards[i].rect.bounds;
-        const W_pt     = r4(bounds.width  * PX_TO_PT);
-        const H_pt     = r4(bounds.height * PX_TO_PT);
+        const bounds = boards[i].rect.bounds;
+        // MediaBox must be in PDF points: paper-pixels × (72/PPI)
+        const W_pt = r3(bounds.width  * PX_TO_PT);
+        const H_pt = r3(bounds.height * PX_TO_PT);
+        const cNum = contentNums[i];
+        const pNum = pageNums[i];
+        const stream = contentStreams[i];
         const shadings = pageShadeObjs[i];
-        const imageMap = pageImageMaps[i];
 
-        // Build opacity graphics state resources (for items with opacity < 1)
-        const gsEntries = [];
-        for (let op = 1; op <= 99; op++) {
-            gsEntries.push(`/GS${op} << /Type /ExtGState /ca ${r4(op/100)} /CA ${r4(op/100)} >>`);
-        }
-        const gsResource = '/ExtGState <<\n' + gsEntries.join('\n') + '\n>>';
-
-        // Shading resources
+        // Build Shading resource dict if this page has gradients
         const shadeKeys = Object.keys(shadings);
-        const shadeResource = shadeKeys.length
-            ? '/Shading <<\n' + shadeKeys.map(k => `/${k} ${shadings[k]}`).join('\n') + '\n>>'
-            : '';
-
-        // Image XObject resources — include all images referenced on this page
-        const imgResources = [];
-        for (const entry of imageMap) {
-            imgResources.push(`/${entry.xobj.name} ${entry.xobj.num} 0 R`);
+        let shadeResource = '';
+        if (shadeKeys.length > 0) {
+            const shEntries = shadeKeys.map(k => `/${k} ${shadings[k]}`).join('\n');
+            shadeResource = `\n   /Shading << ${shEntries} >>`;
         }
-        const imgResource = imgResources.length
-            ? '/XObject <<\n' + imgResources.join('\n') + '\n>>'
-            : '';
 
-        // Page dictionary
-        startObj(pageNums[i]);
-        wStr(`<< /Type /Page\n`);
-        wStr(`   /Parent ${pagesNum} 0 R\n`);
-        wStr(`   /MediaBox [0 0 ${W_pt} ${H_pt}]\n`);
-        wStr(`   /Contents ${contentNums[i]} 0 R\n`);
-        wStr(`   /Resources <<\n`);
-        wStr(`      /Font << /F1 ${fontNum} 0 R >>\n`);
-        wStr(`      ${gsResource}\n`);
-        if (shadeResource) wStr(`      ${shadeResource}\n`);
-        if (imgResource)   wStr(`      ${imgResource}\n`);
-        wStr(`   >>\n>>\n`);
-        endObj();
+        // Page object — MediaBox in PDF points (8.5×11in = 612×792pt)
+        writeObj(pNum,
+            `<< /Type /Page\n   /Parent ${pagesNum} 0 R\n` +
+            `   /MediaBox [0 0 ${W_pt} ${H_pt}]\n` +
+            `   /Contents ${cNum} 0 R\n` +
+            `   /Resources << /Font << /F1 ${fontNum} 0 R >>${shadeResource} >>\n>>`
+        );
 
-        // Content stream
-        const streamStr = contentStreams[i];
-        const streamBytes = new TextEncoder().encode(streamStr);
-        startObj(contentNums[i]);
-        wStr(`<< /Length ${streamBytes.length} >>\nstream\n`);
-        wBin(streamBytes);
-        wStr('\nendstream\n');
-        endObj();
+        // Content stream object
+        const streamBytes = new TextEncoder().encode(stream);
+        const slen = streamBytes.length;
+        offsets[cNum] = offset;
+        w(`${cNum} 0 obj\n<< /Length ${slen} >>\nstream\n`);
+        w(stream);
+        w('\nendstream\nendobj\n');
     }
 
     // ── Cross-reference table ─────────────────────────
-    const xrefOffset = byteOffset;
-    const totalObjs  = objNum + 1;
-    let xref = `xref\n0 ${totalObjs}\n0000000000 65535 f \n`;
+    const xrefOffset = offset;
+    const totalObjs = objNum + 1; // +1 for object 0
+
+    let xref = `xref\n0 ${totalObjs}\n`;
+    xref += `0000000000 65535 f \n`; // object 0 (free)
     for (let n = 1; n <= objNum; n++) {
-        xref += `${String(offsets[n] || 0).padStart(10,'0')} 00000 n \n`;
+        const off = offsets[n] || 0;
+        xref += `${String(off).padStart(10, '0')} 00000 n \n`;
     }
-    wStr(xref);
-    wStr(`trailer\n<< /Size ${totalObjs} /Root ${catNum} 0 R >>\n`);
-    wStr(`startxref\n${xrefOffset}\n%%EOF\n`);
+    w(xref);
 
-    // ── Assemble binary output ────────────────────────
-    // Calculate total byte length
-    let totalLen = 0;
-    for (const part of pdfParts) totalLen += part.data.length;
+    // ── Trailer ───────────────────────────────────────
+    w(`trailer\n<< /Size ${totalObjs}\n   /Root ${catNum} 0 R\n>>\n`);
+    w(`startxref\n${xrefOffset}\n%%EOF\n`);
 
-    const finalBytes = new Uint8Array(totalLen);
-    let pos = 0;
-    for (const part of pdfParts) {
-        if (part.type === 'str') {
-            for (let i = 0; i < part.data.length; i++)
-                finalBytes[pos++] = part.data.charCodeAt(i) & 0xff;
-        } else {
-            finalBytes.set(part.data, pos);
-            pos += part.data.length;
-        }
-    }
+    // ── Assemble and download ─────────────────────────
+    const fullPDF = pdfParts.join('');
+    const bytes   = new Uint8Array(fullPDF.length);
+    for (let i = 0; i < fullPDF.length; i++) bytes[i] = fullPDF.charCodeAt(i) & 0xff;
 
-    const blob = new Blob([finalBytes], { type: 'application/pdf' });
+    const blob = new Blob([bytes], { type: 'application/pdf' });
     const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'), { href: url, download: 'iGuhit-export.pdf' });
+    const a    = Object.assign(document.createElement('a'), {
+        href: url, download: 'iGuhit-export.pdf'
+    });
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+// High-res raster fallback (kept for reference, not used by main export)
+async function addHighResImagePage(pdf, bounds) {
+    const W = Math.round(bounds.width);
+    const H = Math.round(bounds.height);
+    const DPR = 4;
+    const abVis = window.artboardLayer?.visible ?? true;
+    if (window.artboardLayer) window.artboardLayer.visible = false;
+    paper.view.draw();
+    const zoom = paper.view.zoom, deviceDPR = window.devicePixelRatio || 1;
+    const vp = paper.view.projectToView(bounds.topLeft);
+    const tc = document.createElement('canvas');
+    tc.width = W * DPR; tc.height = H * DPR;
+    const ctx = tc.getContext('2d');
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tc.width, tc.height);
+    ctx.scale(DPR, DPR);
+    ctx.drawImage(paper.view.element,
+        Math.round(vp.x * deviceDPR), Math.round(vp.y * deviceDPR),
+        Math.round(bounds.width * zoom * deviceDPR), Math.round(bounds.height * zoom * deviceDPR),
+        0, 0, W, H);
+    pdf.addImage(tc.toDataURL('image/png', 1.0), 'PNG', 0, 0,
+        bounds.width, bounds.height, undefined, 'FAST');
+    if (window.artboardLayer) window.artboardLayer.visible = abVis;
+    paper.view.draw();
 }
 
 // Single authoritative PDF export — iguhit-enhancements.js btn-export-pdf listener is disabled
@@ -5347,21 +5141,3 @@ setInterval(autoSaveProject, 10000);
 
 window.addEventListener('beforeunload', autoSaveProject);
 
-
-// =====================================================
-// EXPOSE GLOBALS FOR AI AGENT
-// =====================================================
-window.updateLayersUI         = updateLayersUI;
-window.deselectAll            = deselectAll;
-window.onSelectionChanged     = onSelectionChanged;
-window.applyStylesToSelection = applyStylesToSelection;
-window.getSelectedDrawItems   = getSelectedDrawItems;
-window.getTopLevelSelectedDrawItems = getTopLevelSelectedDrawItems;
-window.fitArtboardToScreen    = fitArtboardToScreen;
-window.deleteSelectedItems    = deleteSelectedItems;
-window.groupSelectedItems     = groupSelectedItems;
-window.ungroupSelectedItems   = ungroupSelectedItems;
-window.bringSelectedToFront   = bringSelectedToFront;
-window.sendSelectedToBack     = sendSelectedToBack;
-window.alignSelection         = alignSelection;
-window.setZoomLevel           = setZoomLevel;

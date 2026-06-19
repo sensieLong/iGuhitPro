@@ -3,143 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iGuhit Vector — Documentation v5.0</title>
+    <title>iGuhit Vector — Documentation v4.0</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --bg-dark:#232323; --bg-darker:#1b1b1b; --bg-panel:#2b2b2b;
-            --bg-active:#3a3a3a; --text:#dfdfdf; --muted:#8e8e8e;
-            --border:#3e3e3e; --border-dark:#1c1c1c;
-            --accent:#f17c22; --accent-blue:#4a90e2; --danger:#d9534f;
-            --green:#2ecc71; --purple:#9b59b6;
-            --claude:#f17c22; --gemini:#4285f4; --openai:#10a37f;
+            --bg-dark: #232323; --bg-darker: #1b1b1b; --bg-panel: #2b2b2b;
+            --bg-active: #3a3a3a; --text: #dfdfdf; --muted: #8e8e8e;
+            --border: #3e3e3e; --border-dark: #1c1c1c;
+            --accent: #f17c22; --accent-blue: #4a90e2; --danger: #d9534f;
+            --green: #2ecc71;
         }
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-dark);color:var(--text);display:flex;height:100vh;overflow:hidden;}
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg-dark); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
 
         /* ── Sidebar ── */
-        .sidebar{width:270px;background:var(--bg-darker);border-right:1px solid var(--border-dark);display:flex;flex-direction:column;padding:18px 14px;flex-shrink:0;overflow-y:auto;gap:0;}
-        .logo-wrap{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
-        .logo-icon{background:linear-gradient(135deg,#f17c22,#ff9d4d);color:#000;font-weight:900;font-size:14px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.4);}
-        .logo-text{font-weight:800;font-size:15px;color:#fff;}
-        .logo-sub{font-size:9px;color:var(--accent);text-transform:uppercase;font-weight:700;}
-        .nav-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:14px 8px 5px;}
-        .nav-list{list-style:none;display:flex;flex-direction:column;gap:1px;}
-        .nav-item{padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text);display:flex;align-items:center;gap:9px;transition:all .12s;}
-        .nav-item i{font-size:12px;width:16px;text-align:center;color:var(--muted);}
-        .nav-item:hover{background:var(--bg-panel);color:#fff;}
-        .nav-item:hover i{color:var(--accent);}
-        .nav-item.active{background:var(--bg-active);color:#fff;}
-        .nav-item.active i{color:var(--accent);}
-        .nav-item.ai-nav i{color:#f17c22;}
-        .nav-item.ai-nav{border-left:2px solid #f17c22;}
+        .sidebar { width: 265px; background: var(--bg-darker); border-right: 1px solid var(--border-dark); display: flex; flex-direction: column; padding: 18px 14px; flex-shrink: 0; overflow-y: auto; gap: 0; }
+        .logo-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+        .logo-icon { background: linear-gradient(135deg,#f17c22,#ff9d4d); color:#000; font-weight:900; font-size:14px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,.4); }
+        .logo-text { font-weight:800; font-size:15px; color:#fff; }
+        .logo-sub  { font-size:9px; color:var(--accent); text-transform:uppercase; font-weight:700; }
+        .nav-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--muted); padding:14px 8px 5px; }
+        .nav-list  { list-style:none; display:flex; flex-direction:column; gap:1px; }
+        .nav-item  { padding:8px 11px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:500; color:var(--text); display:flex; align-items:center; gap:9px; transition:all .12s; }
+        .nav-item i { font-size:12px; width:16px; text-align:center; color:var(--muted); }
+        .nav-item:hover { background:var(--bg-panel); color:#fff; }
+        .nav-item:hover i { color:var(--accent); }
+        .nav-item.active { background:var(--bg-active); color:#fff; }
+        .nav-item.active i { color:var(--accent); }
 
         /* ── Content ── */
-        .content{flex:1;overflow-y:auto;padding:34px 42px;}
-        .doc-section{display:none;max-width:940px;}
-        .doc-section.active{display:block;}
-        h1{font-size:25px;font-weight:800;color:#fff;margin-bottom:6px;}
-        .subtitle{font-size:13px;color:var(--muted);margin-bottom:26px;line-height:1.65;}
-        h2{font-size:16px;font-weight:700;color:#fff;margin:28px 0 11px;border-bottom:1px solid var(--border);padding-bottom:7px;}
-        h3{font-size:13.5px;font-weight:600;color:var(--accent);margin:18px 0 7px;}
-        p{font-size:13px;line-height:1.7;color:var(--text);margin-bottom:11px;}
-        ul,ol{padding-left:20px;margin-bottom:13px;}
-        li{font-size:13px;line-height:1.7;margin-bottom:3px;}
-        code{background:var(--bg-panel);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:11.5px;font-family:monospace;color:#e8c97a;}
-        a{color:var(--accent);text-decoration:none;}
-        a:hover{text-decoration:underline;}
+        .content { flex:1; overflow-y:auto; padding:34px 42px; }
+        .doc-section { display:none; max-width:920px; }
+        .doc-section.active { display:block; }
+        h1 { font-size:25px; font-weight:800; color:#fff; margin-bottom:6px; }
+        .subtitle { font-size:13px; color:var(--muted); margin-bottom:26px; line-height:1.65; }
+        h2 { font-size:16px; font-weight:700; color:#fff; margin:26px 0 11px; border-bottom:1px solid var(--border); padding-bottom:7px; }
+        h3 { font-size:13.5px; font-weight:600; color:var(--accent); margin:18px 0 7px; }
+        p  { font-size:13px; line-height:1.7; color:var(--text); margin-bottom:11px; }
+        ul, ol { padding-left:20px; margin-bottom:13px; }
+        li { font-size:13px; line-height:1.7; margin-bottom:3px; }
+        code { background:var(--bg-panel); border:1px solid var(--border); border-radius:3px; padding:1px 5px; font-size:11.5px; font-family:monospace; color:#e8c97a; }
+        a  { color:var(--accent); text-decoration:none; }
+        a:hover { text-decoration:underline; }
 
         /* Alerts */
-        .alert{border-radius:6px;padding:13px 16px;margin:16px 0;border-left:3px solid var(--accent);background:rgba(241,124,34,.07);}
-        .alert h4{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px;}
-        .alert p{margin:0;font-size:12.5px;}
-        .alert.blue{border-left-color:var(--accent-blue);background:rgba(74,144,226,.07);}
-        .alert.blue h4{color:var(--accent-blue);}
-        .alert.green{border-left-color:var(--green);background:rgba(46,204,113,.07);}
-        .alert.green h4{color:var(--green);}
-        .alert.purple{border-left-color:var(--purple);background:rgba(155,89,182,.07);}
-        .alert.purple h4{color:var(--purple);}
+        .alert { border-radius:6px; padding:13px 16px; margin:16px 0; border-left:3px solid var(--accent); background:rgba(241,124,34,.07); }
+        .alert h4 { font-size:12px; font-weight:600; color:var(--accent); margin-bottom:4px; }
+        .alert p  { margin:0; font-size:12.5px; }
+        .alert.blue { border-left-color:var(--accent-blue); background:rgba(74,144,226,.07); }
+        .alert.blue h4 { color:var(--accent-blue); }
+        .alert.green { border-left-color:var(--green); background:rgba(46,204,113,.07); }
+        .alert.green h4 { color:var(--green); }
 
         /* Badges */
-        .kbd{display:inline-flex;align-items:center;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;color:#fff;font-family:monospace;box-shadow:0 1px 0 var(--border-dark);}
-        .badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;letter-spacing:.5px;margin-left:5px;vertical-align:middle;}
-        .badge.new{background:var(--accent);color:#000;}
-        .badge.fix{background:var(--accent-blue);color:#fff;}
-        .badge.v4{background:#9b59b6;color:#fff;}
-        .badge.v5{background:linear-gradient(135deg,#f17c22,#e05a00);color:#000;}
-        .badge.ai{background:linear-gradient(135deg,#f17c22,#d9660e);color:#000;}
+        .kbd { display:inline-flex; align-items:center; background:var(--bg-panel); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:10px; font-weight:600; color:#fff; font-family:monospace; box-shadow:0 1px 0 var(--border-dark); }
+        .badge { display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:3px; text-transform:uppercase; letter-spacing:.5px; margin-left:5px; vertical-align:middle; }
+        .badge.new  { background:var(--accent); color:#000; }
+        .badge.fix  { background:var(--accent-blue); color:#fff; }
+        .badge.v4   { background:#9b59b6; color:#fff; }
 
         /* Tables */
-        .tbl{width:100%;border-collapse:collapse;margin:14px 0;font-size:12.5px;}
-        .tbl thead tr{background:var(--bg-panel);}
-        .tbl th{padding:9px 11px;text-align:left;color:var(--muted);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);}
-        .tbl td{padding:9px 11px;border-bottom:1px solid var(--border-dark);vertical-align:top;}
-        .tbl tr:hover td{background:rgba(255,255,255,.02);}
-        .tbl td:first-child{color:var(--accent);font-size:16px;text-align:center;width:48px;}
+        .tbl { width:100%; border-collapse:collapse; margin:14px 0; font-size:12.5px; }
+        .tbl thead tr { background:var(--bg-panel); }
+        .tbl th { padding:9px 11px; text-align:left; color:var(--muted); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; border-bottom:1px solid var(--border); }
+        .tbl td { padding:9px 11px; border-bottom:1px solid var(--border-dark); vertical-align:top; }
+        .tbl tr:hover td { background:rgba(255,255,255,.02); }
+        .tbl td:first-child { color:var(--accent); font-size:16px; text-align:center; width:48px; }
 
         /* Feature grid */
-        .feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;}
-        .feat-card{background:var(--bg-darker);border:1px solid var(--border-dark);padding:16px;border-radius:8px;transition:border-color .15s;}
-        .feat-card:hover{border-color:var(--border);}
-        .feat-card i{font-size:20px;color:var(--accent);margin-bottom:8px;display:block;}
-        .feat-card h4{font-size:13px;font-weight:600;color:#fff;margin-bottom:6px;}
-        .feat-card p{font-size:11.5px;line-height:1.55;color:var(--muted);margin:0;}
-
-        /* Provider cards */
-        .provider-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:16px 0;}
-        .provider-card{background:var(--bg-darker);border:2px solid var(--border-dark);border-radius:10px;padding:16px 14px;text-align:center;}
-        .provider-card.claude{border-color:rgba(241,124,34,.35);}
-        .provider-card.gemini{border-color:rgba(66,133,244,.35);}
-        .provider-card.openai{border-color:rgba(16,163,127,.35);}
-        .provider-icon{font-size:26px;margin-bottom:8px;}
-        .provider-name{font-size:13px;font-weight:700;color:#fff;margin-bottom:4px;}
-        .provider-desc{font-size:10.5px;color:var(--muted);line-height:1.5;}
-        .provider-key{font-size:10px;color:#555;margin-top:6px;}
-
-        /* AI function table */
-        .fn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;}
-        .fn-item{background:var(--bg-darker);border:1px solid var(--border-dark);border-radius:6px;padding:8px 10px;}
-        .fn-item code{display:block;font-size:11px;color:#e8c97a;margin-bottom:3px;}
-        .fn-item small{font-size:10.5px;color:var(--muted);}
+        .feat-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .feat-card { background:var(--bg-darker); border:1px solid var(--border-dark); padding:16px; border-radius:8px; transition:border-color .15s; }
+        .feat-card:hover { border-color:var(--border); }
+        .feat-card i { font-size:20px; color:var(--accent); margin-bottom:8px; display:block; }
+        .feat-card h4 { font-size:13px; font-weight:600; color:#fff; margin-bottom:6px; }
+        .feat-card p  { font-size:11.5px; line-height:1.55; color:var(--muted); margin:0; }
 
         /* Dev log */
-        .log-list{list-style:none;display:flex;flex-direction:column;gap:7px;margin:14px 0;}
-        .log-item{display:flex;align-items:flex-start;gap:11px;padding:11px 13px;background:var(--bg-darker);border:1px solid var(--border-dark);border-radius:7px;}
-        .log-icon{font-size:15px;flex-shrink:0;margin-top:1px;}
-        .log-icon.done{color:var(--green);}
-        .log-icon.new{color:var(--accent);}
-        .log-icon.fix{color:var(--accent-blue);}
-        .log-body{display:flex;flex-direction:column;gap:2px;}
-        .log-title{font-size:12.5px;font-weight:600;color:#fff;}
-        .log-desc{font-size:11px;color:var(--muted);line-height:1.5;}
+        .log-list { list-style:none; display:flex; flex-direction:column; gap:7px; margin:14px 0; }
+        .log-item { display:flex; align-items:flex-start; gap:11px; padding:11px 13px; background:var(--bg-darker); border:1px solid var(--border-dark); border-radius:7px; }
+        .log-icon { font-size:15px; flex-shrink:0; margin-top:1px; }
+        .log-icon.done  { color:var(--green); }
+        .log-icon.new   { color:var(--accent); }
+        .log-icon.fix   { color:var(--accent-blue); }
+        .log-body { display:flex; flex-direction:column; gap:2px; }
+        .log-title { font-size:12.5px; font-weight:600; color:#fff; }
+        .log-desc  { font-size:11px; color:var(--muted); line-height:1.5; }
 
         /* Credit box */
-        .credit{background:linear-gradient(135deg,rgba(74,144,226,.1),rgba(241,124,34,.08));border:1px solid rgba(74,144,226,.25);border-radius:8px;padding:17px 19px;margin:18px 0;}
-        .credit .name{font-size:15px;font-weight:700;color:#fff;}
-        .credit .title{font-size:11.5px;color:var(--accent);margin-top:3px;}
-        .credit .desc{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6;}
-
-        /* AI panel mockup */
-        .ai-mockup{background:#1e1e1e;border:1px solid #444;border-radius:12px;padding:0;overflow:hidden;margin:16px 0;box-shadow:0 4px 20px rgba(0,0,0,.5);}
-        .ai-mockup-header{background:#252525;border-bottom:1px solid #383838;padding:10px 14px;display:flex;align-items:center;gap:8px;}
-        .ai-mockup-icon{width:22px;height:22px;background:linear-gradient(135deg,#f17c22,#d9660e);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;}
-        .ai-mockup-title{font-size:12px;font-weight:700;color:#fff;}
-        .ai-mockup-badge{background:#2ecc71;color:#000;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;}
-        .ai-mockup-body{padding:12px 14px;display:flex;flex-direction:column;gap:8px;}
-        .ai-msg-user{background:linear-gradient(135deg,#f17c22,#d9660e);color:#fff;border-radius:10px 10px 2px 10px;padding:8px 12px;font-size:11px;align-self:flex-end;max-width:85%;}
-        .ai-msg-bot{background:#2b2b2b;border:1px solid #383838;border-radius:10px 10px 10px 2px;padding:8px 12px;font-size:11px;color:#e0e0e0;max-width:90%;}
-        .ai-msg-log{border-left:2px solid #2ecc71;padding:2px 8px;font-size:10px;color:#7dd8a0;font-family:monospace;background:#0d1f10;border-radius:0 3px 3px 0;}
+        .credit { background:linear-gradient(135deg,rgba(74,144,226,.1),rgba(241,124,34,.08)); border:1px solid rgba(74,144,226,.25); border-radius:8px; padding:17px 19px; margin:18px 0; }
+        .credit .name  { font-size:15px; font-weight:700; color:#fff; }
+        .credit .title { font-size:11.5px; color:var(--accent); margin-top:3px; }
+        .credit .desc  { font-size:12px; color:var(--muted); margin-top:8px; line-height:1.6; }
 
         /* Scrollbar */
-        ::-webkit-scrollbar{width:6px;}::-webkit-scrollbar-track{background:var(--bg-darker);}::-webkit-scrollbar-thumb{background:#444;border-radius:3px;}
+        ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:var(--bg-darker); } ::-webkit-scrollbar-thumb { background:#444; border-radius:3px; }
     </style>
 </head>
 <body>
 <nav class="sidebar">
     <div class="logo-wrap">
         <div class="logo-icon">iG</div>
-        <div><div class="logo-text">iGuhit Vector</div><div class="logo-sub">Docs v5.0</div></div>
+        <div><div class="logo-text">iGuhit Vector</div><div class="logo-sub">Docs v4.0</div></div>
     </div>
 
     <div class="nav-label">Getting Started</div>
@@ -160,15 +125,6 @@
         <li class="nav-item" onclick="go('panels')"><i class="fa-solid fa-table-columns"></i> Panels &amp; UI</li>
     </ul>
 
-    <div class="nav-label">AI Agent <span class="badge ai" style="font-size:8px;">v5 New</span></div>
-    <ul class="nav-list">
-        <li class="nav-item ai-nav" onclick="go('ai-overview')"><i class="fa-solid fa-robot"></i> Overview</li>
-        <li class="nav-item ai-nav" onclick="go('ai-setup')"><i class="fa-solid fa-key"></i> Setup &amp; API Keys</li>
-        <li class="nav-item ai-nav" onclick="go('ai-providers')"><i class="fa-solid fa-sliders"></i> Providers &amp; Models</li>
-        <li class="nav-item ai-nav" onclick="go('ai-commands')"><i class="fa-solid fa-terminal"></i> Commands Reference</li>
-        <li class="nav-item ai-nav" onclick="go('ai-tips')"><i class="fa-solid fa-lightbulb"></i> Tips &amp; Limits</li>
-    </ul>
-
     <div class="nav-label">Project</div>
     <ul class="nav-list">
         <li class="nav-item" onclick="go('changelog')"><i class="fa-solid fa-list-check"></i> Changelog</li>
@@ -177,10 +133,10 @@
 
 <div class="content">
 
-<!-- ═══════════ QUICK START ═══════════ -->
+<!-- ═══════════════════════ QUICK START ═══════════════════════ -->
 <section id="quickstart" class="doc-section active">
     <h1>🚀 iGuhit Vector Graphics Editor</h1>
-    <p class="subtitle">A premium, fully client-side vector graphics editor built with HTML5, CSS3, JavaScript, and Paper.js — designed to match professional vector design environments like Industry Standard Applications. Now with a built-in multi-provider AI Agent.</p>
+    <p class="subtitle">A premium, fully client-side vector graphics editor built with HTML5, CSS3, JavaScript, and Paper.js — designed to match professional vector design environments like Industry Standard Applications.</p>
 
     <div class="credit">
         <div class="name">Juan Salgarino</div>
@@ -189,7 +145,7 @@
     </div>
 
     <h2>Introduction</h2>
-    <p>iGuhit Vector replicates the traditional multi-panel desktop vector workspace. Draw path vectors, modify anchor points, manage layers, apply gradients and patterns, embed images, and export to SVG, PDF, PNG, and Adobe Illustrator format — all inside a browser tab. In v5, an AI Agent gives you natural-language control of the entire canvas.</p>
+    <p>iGuhit Vector replicates the traditional multi-panel desktop vector workspace. Draw path vectors, modify anchor points, manage layers, apply gradients and patterns, embed images, and export to SVG, PDF, PNG, and Adobe Illustrator format — all inside a browser tab.</p>
 
     <div class="alert">
         <h4><i class="fa-solid fa-circle-info"></i> Canvas &amp; Artboard</h4>
@@ -198,13 +154,12 @@
 
     <h2>File Structure</h2>
     <ul>
-        <li><code>index.html</code> — Workspace markup: menus, panels, toolbar, canvas, ruler strips, AI Agent panel.</li>
+        <li><code>index.html</code> — Workspace markup: menus, panels, toolbar, canvas, ruler strips.</li>
         <li><code>style.css</code> — Dark UI theme, panel layouts, animation keyframes.</li>
         <li><code>app.js</code> — Core engine: all tools, layer system, undo/redo, artboard, exports.</li>
         <li><code>advanced-features-addon.js</code> — Pathfinder, blob brush, boolean previews.</li>
         <li><code>iguhit-enhancements.js</code> — Rulers, smart guides, arrowheads, step &amp; repeat, artboard tool, AI import/export.</li>
         <li><code>iguhit-features.js</code> — <span class="badge v4">v4</span> Gradient fill, pattern fill, symbol library, snap to grid, image embed, tapered brush, PNG per artboard.</li>
-        <li><code>iguhit-ai-agent.js</code> — <span class="badge v5">v5</span> Multi-provider AI Agent (Claude, Gemini, ChatGPT) with full canvas control, retry logic, and rate-limit handling.</li>
     </ul>
 
     <h2>Quick Workflow</h2>
@@ -212,12 +167,11 @@
         <li>Pick a tool from the left toolbar (or use its keyboard shortcut).</li>
         <li>Draw on the canvas. Use the top control bar to set fill, stroke, opacity.</li>
         <li>Open the <strong>Adv</strong> tab in the right panel for gradients, patterns, symbols, and image placement.</li>
-        <li>Click the <strong>✦ AI Agent</strong> button in the top menu to open the AI chat panel.</li>
         <li>Use <strong>File</strong> menu to export as SVG, PDF, PNG, or Illustrator file.</li>
     </ol>
 </section>
 
-<!-- ═══════════ TOOLS & SHORTCUTS ═══════════ -->
+<!-- ═══════════════════════ TOOLS & SHORTCUTS ═══════════════════════ -->
 <section id="shortcuts" class="doc-section">
     <h1>🛠️ Tools &amp; Keyboard Shortcuts</h1>
     <p class="subtitle">Every tool in the left toolbar, with its keyboard shortcut and description.</p>
@@ -229,14 +183,14 @@
             <tr><td><i class="fa-solid fa-location-arrow" style="transform:rotate(-45deg)"></i></td><td><strong>Direct Selection</strong></td><td><span class="kbd">A</span></td><td>Select and drag individual anchor points and Bezier handles. Segment type buttons appear in the control bar: Smooth, Corner, Handle In, Handle Out.</td></tr>
             <tr><td><i class="fa-solid fa-crop-alt"></i></td><td><strong>Artboard Tool</strong></td><td><span class="kbd">Shift+A</span></td><td>Click an artboard to select it (turns orange). Drag to reposition — all content inside moves with it. Resize via W/H inputs in the control bar. Delete key removes secondary artboards.</td></tr>
             <tr><td><i class="fa-solid fa-pen-nib"></i></td><td><strong>Pen Tool</strong></td><td><span class="kbd">P</span></td><td>Click to place corners. Drag to pull Bezier handles. Click first anchor to close. Enter/Escape to finish open path.</td></tr>
-            <tr><td><i class="fa-solid fa-font"></i></td><td><strong>Type Tool</strong></td><td><span class="kbd">T</span></td><td>Click canvas to place text. Font family, size, weight, and style appear in the control bar.</td></tr>
+            <tr><td><i class="fa-solid fa-font"></i></td><td><strong>Type Tool</strong></td><td><span class="kbd">T</span></td><td>Click canvas to place text. Font family, size, weight, and style appear in the control bar. Selecting existing text syncs all controls.</td></tr>
             <tr><td><i class="fa-solid fa-slash"></i></td><td><strong>Line Tool</strong></td><td><span class="kbd">\</span></td><td>Click and drag to draw a straight line segment.</td></tr>
-            <tr><td><i class="fa-regular fa-square"></i></td><td><strong>Rectangle Tool</strong></td><td><span class="kbd">M</span></td><td>Drag to draw. Shift = square. Click to open dimension dialog. Corner radius inputs appear in control bar.</td></tr>
+            <tr><td><i class="fa-regular fa-square"></i></td><td><strong>Rectangle Tool</strong></td><td><span class="kbd">M</span></td><td>Drag to draw. Shift = square. Click to open dimension dialog. Corner radius inputs appear in control bar for per-corner rounding.</td></tr>
             <tr><td><i class="fa-regular fa-circle"></i></td><td><strong>Ellipse Tool</strong></td><td><span class="kbd">L</span></td><td>Drag to draw. Shift = perfect circle. Click to open dimension dialog.</td></tr>
             <tr><td><i class="fa-solid fa-pencil"></i></td><td><strong>Pencil / Brush</strong></td><td><span class="kbd">B</span></td><td>Freehand drawing. Path is smoothed automatically on release.</td></tr>
-            <tr><td><i class="fa-solid fa-paintbrush"></i></td><td><strong>Tapered Brush</strong> <span class="badge new">v4</span></td><td><span class="kbd">Shift+B</span></td><td>Draw freehand strokes that taper from your stroke width to a fine point. Converts to a filled vector shape on release.</td></tr>
-            <tr><td><i class="fa-solid fa-eraser"></i></td><td><strong>Eraser Tool</strong></td><td><span class="kbd">Shift+E</span></td><td>Drag over paths to erase or carve them.</td></tr>
-            <tr><td><i class="fa-solid fa-arrows-rotate"></i></td><td><strong>Rotate Tool</strong></td><td><span class="kbd">R</span></td><td>Drag around the center pivot to rotate. Or enter an angle in the Properties panel.</td></tr>
+            <tr><td><i class="fa-solid fa-paintbrush"></i></td><td><strong>Tapered Brush</strong> <span class="badge new">v4</span></td><td><span class="kbd">Shift+B</span></td><td>Draw freehand strokes that taper from your stroke width to a fine point. Converts to a filled vector shape on release — fully scalable, no rasterization.</td></tr>
+            <tr><td><i class="fa-solid fa-eraser"></i></td><td><strong>Eraser Tool</strong></td><td><span class="kbd">Shift+E</span></td><td>Drag over paths to erase or carve them. Works reliably for any number of operations.</td></tr>
+            <tr><td><i class="fa-solid fa-arrows-rotate"></i></td><td><strong>Rotate Tool</strong></td><td><span class="kbd">R</span></td><td>Drag around the center pivot to rotate. Or enter an angle in the Properties panel and click Rotate.</td></tr>
             <tr><td><i class="fa-solid fa-diagram-project"></i></td><td><strong>Shape Builder</strong></td><td><span class="kbd">Shift+M</span></td><td>Drag over overlapping selected paths to merge them into a united shape.</td></tr>
             <tr><td><i class="fa-regular fa-hand"></i></td><td><strong>Hand Tool</strong></td><td><span class="kbd">H</span> / <span class="kbd">Space</span></td><td>Pan the canvas. Hold Space from any tool to pan temporarily.</td></tr>
             <tr><td><i class="fa-solid fa-magnifying-glass"></i></td><td><strong>Zoom Tool</strong></td><td><span class="kbd">Z</span></td><td>Click to zoom in. Alt+click to zoom out. Drag right/left for dynamic zoom.</td></tr>
@@ -251,7 +205,7 @@
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Ctrl+Y</span></td><td>Redo</td></tr>
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Ctrl+G</span></td><td>Group selected objects</td></tr>
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Ctrl+Shift+G</span></td><td>Ungroup</td></tr>
-            <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Ctrl+D</span></td><td>Step &amp; Repeat</td></tr>
+            <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Ctrl+D</span></td><td>Step &amp; Repeat (or repeat last)</td></tr>
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Ctrl+R</span></td><td>Toggle Rulers</td></tr>
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Ctrl+Shift+\</span></td><td>Toggle Snap to Grid</td></tr>
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Ctrl+Shift+]</span></td><td>Bring to Front</td></tr>
@@ -260,11 +214,13 @@
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Alt+Drag</span></td><td>Duplicate while dragging</td></tr>
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Shift+X</span></td><td>Swap Fill and Stroke colors</td></tr>
             <tr><td style="text-align:left;font-size:12px;"><span class="kbd">D</span></td><td>Reset to default colors</td></tr>
+            <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Shift+B</span></td><td>Tapered Brush Tool</td></tr>
+            <tr><td style="text-align:left;font-size:12px;"><span class="kbd">Shift+A</span></td><td>Artboard Tool</td></tr>
         </tbody>
     </table>
 </section>
 
-<!-- ═══════════ CORE FEATURES ═══════════ -->
+<!-- ═══════════════════════ CORE FEATURES ═══════════════════════ -->
 <section id="core" class="doc-section">
     <h1>🎨 Core Features</h1>
     <p class="subtitle">The foundational capabilities built into iGuhit Vector.</p>
@@ -296,7 +252,7 @@
     </div>
 </section>
 
-<!-- ═══════════ GRADIENT & PATTERN ═══════════ -->
+<!-- ═══════════════════════ GRADIENT & PATTERN FILL ═══════════════════════ -->
 <section id="fills" class="doc-section">
     <h1>🎨 Gradient &amp; Pattern Fill <span class="badge v4">v4 New</span></h1>
     <p class="subtitle">Apply linear/radial gradients and tiled pattern fills to any selected object — found in the Advanced panel (Adv tab).</p>
@@ -306,55 +262,65 @@
     <h3>Linear Gradient</h3>
     <p>Pick two colors (Color 1 and Color 2), set the position of each stop (0–100%), and set the <strong>Angle</strong> slider (0–360°) to control the direction. Click <strong>Apply Gradient</strong>.</p>
     <h3>Radial Gradient</h3>
-    <p>Same color controls as linear. The gradient radiates outward from the object's center to its right edge.</p>
+    <p>Same color controls as linear. The gradient radiates outward from the object's center to its right edge. Switch to Radial mode by clicking the Radial button.</p>
 
     <div class="alert">
         <h4><i class="fa-solid fa-circle-info"></i> SVG Compatible</h4>
-        <p>Gradients are applied as native Paper.js gradient objects and export correctly to SVG and PDF.</p>
+        <p>Gradients are applied as native Paper.js gradient objects and export correctly to SVG. In the PDF export they are rendered as vector gradients.</p>
     </div>
 
     <h2>Pattern Fill</h2>
     <p>Select objects, then <strong>Adv panel → Pattern Fill → Apply Pattern Fill…</strong></p>
-    <p>Five built-in patterns: <strong>Dots</strong>, <strong>Lines</strong>, <strong>Grid</strong>, <strong>Diagonal</strong>, <strong>Checker</strong>. Pick a Color and tile Size before clicking Apply.</p>
+    <p>Five built-in patterns:</p>
+    <ul>
+        <li><strong>Dots</strong> — repeating circles</li>
+        <li><strong>Lines</strong> — horizontal stripes</li>
+        <li><strong>Grid</strong> — horizontal and vertical grid lines</li>
+        <li><strong>Diagonal</strong> — 45° diagonal lines</li>
+        <li><strong>Checker</strong> — checkerboard squares</li>
+    </ul>
+    <p>Pick a <strong>Color</strong> and <strong>Size</strong> (tile size in px) before clicking Apply. The pattern is clipped to the exact boundary of each selected shape.</p>
 </section>
 
-<!-- ═══════════ SYMBOL LIBRARY ═══════════ -->
+<!-- ═══════════════════════ SYMBOL LIBRARY ═══════════════════════ -->
 <section id="symbols" class="doc-section">
     <h1>🧩 Symbol Library <span class="badge v4">v4 New</span></h1>
-    <p class="subtitle">Save selections as reusable symbols and place them anywhere on the canvas.</p>
+    <p class="subtitle">Save selections as reusable symbols and place them anywhere on the canvas — found in the Adv panel.</p>
 
     <h2>Saving a Symbol</h2>
     <ol>
         <li>Select the objects you want to save.</li>
         <li>Open <strong>Adv panel → Symbol Library → Open Symbol Library…</strong></li>
-        <li>Type a name in the text field and click <strong>+ Save Selection as Symbol</strong>.</li>
+        <li>Type a name in the text field.</li>
+        <li>Click <strong>+ Save Selection as Symbol</strong>.</li>
     </ol>
+    <p>The symbol appears as a card in the library grid.</p>
 
     <h2>Placing a Symbol</h2>
-    <p>Click <strong>Place</strong> on any symbol card. A copy is placed at the canvas center, fully selected and ready to move.</p>
+    <p>Click <strong>Place</strong> on any symbol card. A copy is placed at the canvas center, fully selected and ready to move. The original symbol in the library is unaffected — you can place it as many times as you need.</p>
 
     <h2>Deleting a Symbol</h2>
     <p>Click <strong>Del</strong> on the symbol card. This only removes it from the library — any copies already placed on the canvas remain.</p>
 
     <div class="alert blue">
         <h4><i class="fa-solid fa-circle-info"></i> Session Storage</h4>
-        <p>Symbols are stored for the current browser session. Export your canvas as SVG before closing to preserve all artwork.</p>
+        <p>Symbols are stored for the current browser session. To persist symbols across sessions, export your canvas as SVG (which preserves all artwork) before closing.</p>
     </div>
 </section>
 
-<!-- ═══════════ SNAP TO GRID ═══════════ -->
+<!-- ═══════════════════════ SNAP TO GRID ═══════════════════════ -->
 <section id="grid" class="doc-section">
     <h1>⊞ Snap to Grid <span class="badge v4">v4 New</span></h1>
     <p class="subtitle">Align drawing operations precisely to a configurable grid overlay.</p>
 
     <h2>Enabling Snap to Grid</h2>
-    <p>Go to <strong>Adv panel → Snap to Grid → Toggle Snap to Grid</strong>, or press <span class="kbd">Ctrl+Shift+\</span>. A blue dot-grid overlay appears on the canvas.</p>
+    <p>Go to <strong>Adv panel → Snap to Grid → Toggle Snap to Grid</strong>, or press <span class="kbd">Ctrl+Shift+\</span>. A blue dot-grid overlay appears on the canvas. The button border turns orange when active.</p>
 
     <h2>Grid Size</h2>
-    <p>Enter a value (in paper pixels) in the <strong>px</strong> input next to the toggle button. Default is 10px.</p>
+    <p>Enter a value (in paper pixels) in the <strong>px</strong> input next to the toggle button. The grid updates immediately. Default is 10px.</p>
 
     <h2>How Snapping Works</h2>
-    <p>When snap is enabled, all draw operations snap anchor points to the nearest grid intersection:</p>
+    <p>When snap is enabled, all draw operations snap anchor points to the nearest grid intersection. This works for the Pen, Rectangle, Ellipse, Line, and Pencil tools. The snap point is computed as:</p>
     <p><code>snapped = round(paperPoint / gridSize) * gridSize</code></p>
 
     <div class="alert green">
@@ -363,28 +329,38 @@
     </div>
 </section>
 
-<!-- ═══════════ IMAGE EMBED ═══════════ -->
+<!-- ═══════════════════════ IMAGE EMBED ═══════════════════════ -->
 <section id="image" class="doc-section">
     <h1>🖼️ Image Embed (Place) <span class="badge v4">v4 New</span></h1>
     <p class="subtitle">Import raster images (PNG, JPG, GIF, WebP, SVG) directly onto the canvas as embedded objects.</p>
 
     <h2>Placing an Image</h2>
+    <p>Use either:</p>
     <ul>
         <li><strong>File menu → Place / Embed Image…</strong></li>
         <li><strong>Adv panel → Image → Place / Embed Image…</strong></li>
     </ul>
-    <p>The image is embedded as a Paper.js Raster object centered on the canvas view.</p>
+    <p>A file picker opens. Select any image file. The image is embedded as a Paper.js Raster object, centered on the canvas view.</p>
 
     <h2>Auto-Scaling</h2>
     <p>If the image is larger than the artboard, it is automatically scaled down to 80% of the artboard's smaller dimension while maintaining aspect ratio.</p>
 
+    <h2>Working with Embedded Images</h2>
+    <p>Once placed, images behave like any other canvas object:</p>
+    <ul>
+        <li>Use the <strong>Selection Tool (V)</strong> to move and scale.</li>
+        <li>Apply <strong>opacity</strong> via the control bar.</li>
+        <li>Use <strong>Object → Bring to Front / Send to Back</strong> to control stacking order.</li>
+        <li>Images are included in SVG, PDF, and PNG exports.</li>
+    </ul>
+
     <div class="alert">
         <h4><i class="fa-solid fa-circle-info"></i> Embedded vs Linked</h4>
-        <p>Images are embedded as base64 data URIs — the file is self-contained. No external file links are used.</p>
+        <p>Images are embedded as base64 data URIs — the file is self-contained. No external file links are used, so moving or renaming the original file has no effect.</p>
     </div>
 </section>
 
-<!-- ═══════════ TAPERED BRUSH ═══════════ -->
+<!-- ═══════════════════════ TAPERED BRUSH ═══════════════════════ -->
 <section id="tapered" class="doc-section">
     <h1>🖌️ Tapered Brush <span class="badge v4">v4 New</span></h1>
     <p class="subtitle">Draw variable-width freehand strokes that taper to a point — converted to fully scalable vector shapes.</p>
@@ -392,31 +368,34 @@
     <h2>Using the Tapered Brush</h2>
     <ol>
         <li>Click the <strong>paintbrush icon</strong> in the toolbar or press <span class="kbd">Shift+B</span>.</li>
-        <li>Set your desired <strong>Stroke Width</strong> in the control bar — this becomes the starting width.</li>
+        <li>Set your desired <strong>Stroke Width</strong> in the control bar — this becomes the starting width of the stroke.</li>
         <li>Set your desired <strong>Stroke Color</strong> — this becomes the fill of the resulting shape.</li>
-        <li>Click and drag on the canvas to draw.</li>
-        <li>Release the mouse — the stroke is converted to a filled vector shape.</li>
+        <li>Click and drag on the canvas to draw. You'll see the live stroke path as you paint.</li>
+        <li>Release the mouse — the stroke is converted to a filled vector shape that tapers from full width to a fine point.</li>
     </ol>
 
     <h2>How it Works</h2>
-    <p>Unlike the Pencil tool which creates a stroked path, the Tapered Brush builds a <strong>filled shape</strong> by computing offset curves on both sides of the stroke path. The width decreases from the starting stroke width to ~0.4px at the tip.</p>
+    <p>Unlike the Pencil tool which creates a stroked path, the Tapered Brush builds a <strong>filled shape</strong> by computing offset curves on both sides of the stroke path. The width decreases from the starting stroke width to ~0.4px at the tip. The result is a Paper.js <code>Path</code> with a closed fill — no stroke — that scales perfectly at any zoom level without getting thicker or thinner.</p>
 
     <div class="alert blue">
         <h4><i class="fa-solid fa-bezier-curve"></i> Tip — Smoothing</h4>
-        <p>The Tapered Brush automatically applies catmull-rom smoothing to the underlying path. For cleaner strokes, draw slowly and deliberately.</p>
+        <p>The Tapered Brush automatically applies catmull-rom smoothing to the underlying path before building the shape. For cleaner strokes, draw slowly and deliberately.</p>
     </div>
+
+    <h2>After Drawing</h2>
+    <p>The resulting shape can be manipulated with the Direct Selection Tool to adjust individual anchor points, or grouped with other objects, given gradients or pattern fills, and exported to any format.</p>
 </section>
 
-<!-- ═══════════ EXPORT OPTIONS ═══════════ -->
+<!-- ═══════════════════════ EXPORT OPTIONS ═══════════════════════ -->
 <section id="export" class="doc-section">
     <h1>📤 Export Options</h1>
     <p class="subtitle">All the ways to get your artwork out of iGuhit Vector.</p>
 
     <h2>Export as SVG</h2>
-    <p><strong>File → Save / Export SVG</strong> — Exports all visible content as a standard SVG file. Fully editable in any SVG editor.</p>
+    <p><strong>File → Save / Export SVG</strong> — Exports all visible content as a standard SVG file. Fully editable in any SVG editor. Gradients, text, and paths are preserved as vector data.</p>
 
     <h2>Export as Illustrator (.svg)</h2>
-    <p><strong>File → Export as Illustrator (.svg)</strong> — Includes Adobe Illustrator-compatible XML namespaces. Open directly in Illustrator as an editable document.</p>
+    <p><strong>File → Export as Illustrator (.svg)</strong> — Same as SVG export but includes Adobe Illustrator-compatible XML namespaces (<code>xmlns:a</code>, <code>sfw</code> metadata block). Open directly in Illustrator as an editable document.</p>
 
     <h2>Import Illustrator (.ai / .svg)</h2>
     <p><strong>File → Import Illustrator (.ai / .svg)</strong> — Opens a file picker for <code>.ai</code> and <code>.svg</code> files. Modern AI files (CS3+) are SVG-based and import as fully editable paths.</p>
@@ -425,382 +404,81 @@
     <p><strong>File → Export as PNG</strong> — Exports the entire canvas view as a flat raster image.</p>
 
     <h2>Export PNG per Artboard <span class="badge v4">v4 New</span></h2>
-    <p>Exports each artboard as its own separate PNG file at <strong>2× resolution</strong>. Files are named <code>Artboard-1.png</code>, <code>Artboard-2.png</code>, etc.</p>
+    <p><strong>File → Export PNG per Artboard</strong> or <strong>Adv panel → Export → Export PNG per Artboard</strong></p>
+    <p>Exports each artboard as its own separate PNG file at <strong>2× resolution</strong> (Retina/HiDPI quality). Files are named <code>Artboard-1.png</code>, <code>Artboard-2.png</code>, etc. Artboard chrome (grid lines, shadow, border) is hidden during capture. Multiple files download sequentially.</p>
 
     <h2>Export PDF (Artboard)</h2>
-    <p>Generates a vector PDF using raw PDF content stream operators. Each artboard becomes one PDF page. Paths, curves, fills, and strokes are written as real PDF vector commands — open in Illustrator and edit paths directly.</p>
+    <p><strong>File → Export PDF</strong> — Generates a vector PDF using raw PDF content stream operators. Each artboard becomes one PDF page at its exact dimensions. Paths, curves, fills, and strokes are written as real PDF vector commands — open in Illustrator and edit paths directly. Text is embedded as PDF text operators.</p>
 
     <div class="alert">
         <h4><i class="fa-solid fa-print"></i> Print Quality</h4>
-        <p>The PDF export writes real Bézier curve commands (<code>m</code>, <code>l</code>, <code>c</code>, <code>f</code>, <code>S</code>, <code>B</code>) directly — no rasterization. Artwork prints at full printer resolution.</p>
+        <p>The PDF export writes real Bézier curve commands (<code>m</code>, <code>l</code>, <code>c</code>, <code>f</code>, <code>S</code>, <code>B</code>) directly — no rasterization. Artwork prints at full printer resolution regardless of file size.</p>
     </div>
 </section>
 
-<!-- ═══════════ PANELS & UI ═══════════ -->
+<!-- ═══════════════════════ PANELS & UI ═══════════════════════ -->
 <section id="panels" class="doc-section">
     <h1>📐 Panels &amp; UI Reference</h1>
     <p class="subtitle">Every panel, tab, and UI area explained.</p>
 
     <h2>Right Sidebar Tabs</h2>
     <ul>
-        <li><strong>Layers</strong> — Layer hierarchy with visibility eye, lock, rename, radio button, and expand/collapse.</li>
-        <li><strong>Properties</strong> — Transform X/Y/W/H, Stroke Cap/Join, Dash Array, Rotate, Flip, Duplicate, and Step &amp; Repeat.</li>
+        <li><strong>Layers</strong> — Layer hierarchy with visibility eye, lock, rename (double-click), radio button (select-all), and expand/collapse children.</li>
+        <li><strong>Properties</strong> — Transform X/Y/W/H, Stroke Cap/Join, Dash Array, Rotate, Flip, Duplicate, and <strong>Step &amp; Repeat</strong>.</li>
         <li><strong>Swatches</strong> — Predefined color palette. Click to apply to active fill or stroke.</li>
-        <li><strong>Adv</strong> — Pathfinder, Path Operations, Artboards, Gradient Fill, Pattern Fill, Symbol Library, Place Image, Snap to Grid, Export PNG per Artboard.</li>
+        <li><strong>Adv</strong> — Pathfinder, Path Operations, Artboards, <strong>Gradient Fill</strong>, <strong>Pattern Fill</strong>, <strong>Symbol Library</strong>, <strong>Place Image</strong>, <strong>Snap to Grid</strong>, <strong>Export PNG per Artboard</strong>.</li>
     </ul>
 
     <h2>Rulers</h2>
-    <p>Red tick-mark rulers run along the top and left edges. Default unit is <strong>inches</strong> at 96 PPI. Toggle with <span class="kbd">Ctrl+R</span>.</p>
+    <p>Red tick-mark rulers run along the top and left edges of the canvas. Default unit is <strong>inches</strong> at 96 PPI. Rulers update on every zoom and pan. Toggle with <span class="kbd">Ctrl+R</span>. Change unit via the artboard unit dropdown in the control bar.</p>
 
     <h2>Smart Guides</h2>
-    <p>Magenta SVG lines snap over the canvas when dragging near edges or centers of other objects. Toggle via <strong>View → Toggle Smart Guides</strong>.</p>
+    <p>Magenta SVG lines snap over the canvas when dragging objects near edges or centers of other objects or the artboard. Auto-clears after 700ms. Toggle via <strong>View → Toggle Smart Guides</strong>.</p>
 
     <h2>Virtual Modifier Keypad</h2>
-    <p>The floating draggable keypad provides toggleable <span class="kbd">Ctrl</span>, <span class="kbd">Alt</span>, <span class="kbd">Shift</span> keys — useful for tablet or touchscreen use.</p>
+    <p>The floating draggable keypad provides toggleable <span class="kbd">Ctrl</span>, <span class="kbd">Alt</span>, <span class="kbd">Shift</span> keys — useful for tablet or touchscreen use. Drag the header to reposition.</p>
 
     <h2>Status Bar</h2>
-    <p>Shows active tool name, live cursor coordinates, canvas hints, and the zoom percentage input.</p>
-
-    <h2>AI Agent Panel <span class="badge ai">v5 New</span></h2>
-    <p>The floating AI chat panel is accessible via the <strong>✦ AI Agent</strong> button in the top menu bar. It supports natural-language commands, multi-turn conversation, and full canvas control. See the <a href="#" onclick="go('ai-overview');return false;">AI Agent section</a> for full documentation.</p>
+    <p>Shows active tool name, live cursor coordinates, canvas hints, and the zoom percentage input (type a value, press Enter to set).</p>
 </section>
 
-<!-- ═══════════ AI OVERVIEW ═══════════ -->
-<section id="ai-overview" class="doc-section">
-    <h1>✦ AI Agent <span class="badge v5">v5 New</span></h1>
-    <p class="subtitle">A built-in multi-provider AI assistant that has full control of your iGuhit canvas. Just describe what you want — the agent draws, arranges, styles, and edits for you.</p>
-
-    <div class="alert" style="border-left-color:#f17c22;background:rgba(241,124,34,.08);">
-        <h4><i class="fa-solid fa-robot"></i> What the AI Agent Can Do</h4>
-        <p>The agent can draw shapes, create complex illustrations, apply colors and gradients, group objects, create cropmarks, align items, undo/redo, and more — all from a plain text prompt. It reads the current canvas state before every reply so it always knows what's on screen.</p>
-    </div>
-
-    <h2>Opening the Agent</h2>
-    <p>Click the orange <strong>✦ AI Agent</strong> button in the top menu bar. The panel appears at the bottom-right of the screen. You can drag it by its header to reposition it, resize it from the corner, minimize it (−), or close it (×).</p>
-
-    <div class="ai-mockup">
-        <div class="ai-mockup-header">
-            <div class="ai-mockup-icon">✦</div>
-            <span class="ai-mockup-title">iGuhit AI Agent</span>
-            <span class="ai-mockup-badge">BETA</span>
-        </div>
-        <div class="ai-mockup-body">
-            <div class="ai-msg-user">Draw a monkey face in the center of the artboard</div>
-            <div class="ai-msg-log">▶ drawCircle (head) → Circle 300x300</div>
-            <div class="ai-msg-log">▶ drawEllipse (muzzle) → Ellipse 160x100</div>
-            <div class="ai-msg-log">▶ drawCircle (left eye) → Circle 40x40</div>
-            <div class="ai-msg-log">▶ drawCircle (right eye) → Circle 40x40</div>
-            <div class="ai-msg-log">▶ drawPath (smile) → Path 8pts</div>
-            <div class="ai-msg-bot">Done! I drew a monkey face using a large tan circle for the head, a lighter muzzle ellipse, dark eyes with white highlights, and a curved smile path. All parts are grouped for easy movement.</div>
-        </div>
-    </div>
-
-    <h2>Panel Controls</h2>
-    <table class="tbl">
-        <thead><tr><th>Button</th><th>Action</th></tr></thead>
-        <tbody>
-            <tr><td style="font-size:13px;">⚙</td><td><strong>Settings</strong> — Open the provider/model/API key settings panel</td></tr>
-            <tr><td style="font-size:13px;">⟳</td><td><strong>Clear chat</strong> — Reset the conversation history</td></tr>
-            <tr><td style="font-size:13px;">−</td><td><strong>Minimize</strong> — Collapse the chat body, keep header visible</td></tr>
-            <tr><td style="font-size:13px;">×</td><td><strong>Close</strong> — Hide the panel (a small ✦ FAB appears to reopen it)</td></tr>
-        </tbody>
-    </table>
-
-    <h2>Sending Messages</h2>
-    <p>Type in the text area at the bottom of the panel and press <span class="kbd">Ctrl+Enter</span> or click the send button. The agent shows a thinking indicator while processing, then streams action logs (green ticks) as it executes each step, followed by a reply message.</p>
-
-    <h2>Quick-Prompt Chips</h2>
-    <p>On first open the welcome message shows clickable prompt chips — tap any to instantly send that prompt. You can ask for anything: drawing tasks, styling, grouping, cropmarks, or just information about iGuhit's features.</p>
-</section>
-
-<!-- ═══════════ AI SETUP ═══════════ -->
-<section id="ai-setup" class="doc-section">
-    <h1>🔑 Setup &amp; API Keys</h1>
-    <p class="subtitle">The AI Agent connects directly to AI provider APIs from your browser. You need an API key from at least one provider.</p>
-
-    <div class="alert purple">
-        <h4><i class="fa-solid fa-shield-halved"></i> Privacy &amp; Security</h4>
-        <p>Your API keys are stored only in your browser's <code>localStorage</code>. They are sent directly from your browser to the respective AI provider — never to any third-party server.</p>
-    </div>
-
-    <h2>First Launch</h2>
-    <p>On first open (or when no key is saved), the agent panel automatically shows the <strong>Settings → API Keys</strong> screen. Enter your key there and click <strong>Save</strong>.</p>
-
-    <h2>Accessing Settings Later</h2>
-    <p>Click the <strong>⚙ gear icon</strong> in the agent panel header at any time to open settings. It has three tabs: <strong>Provider</strong>, <strong>Model</strong>, and <strong>API Keys</strong>.</p>
-
-    <h2>Where to Get Each API Key</h2>
-    <table class="tbl">
-        <thead><tr><th>Provider</th><th>Key Format</th><th>Where to Get It</th><th>Free Tier</th></tr></thead>
-        <tbody>
-            <tr>
-                <td style="font-size:13px;color:var(--claude);">✦ Claude</td>
-                <td><code>sk-ant-...</code></td>
-                <td><a href="https://console.anthropic.com/keys" target="_blank">console.anthropic.com/keys</a></td>
-                <td>Yes — limited credits</td>
-            </tr>
-            <tr>
-                <td style="font-size:13px;color:var(--gemini);">✸ Gemini</td>
-                <td><code>AIza...</code></td>
-                <td><a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a></td>
-                <td>Yes — ~2 req/min free</td>
-            </tr>
-            <tr>
-                <td style="font-size:13px;color:var(--openai);">⬡ ChatGPT</td>
-                <td><code>sk-...</code></td>
-                <td><a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a></td>
-                <td>No — pay-as-you-go</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <h2>Changing or Clearing a Key</h2>
-    <p>Open <strong>⚙ Settings → API Keys</strong>, update the input field, and click <strong>Save</strong>. To clear a key, click the <strong>✕</strong> button next to the input. A cleared key means that provider cannot be used until a new key is entered.</p>
-
-    <div class="alert">
-        <h4><i class="fa-solid fa-circle-info"></i> Running from a Local Server</h4>
-        <p>The AI Agent uses <code>fetch()</code> to call external APIs. This requires the page to be served over HTTP, not opened directly as a <code>file://</code> URL. Run iGuhit from a local server: <code>python -m http.server 8080</code> or use VS Code Live Server.</p>
-    </div>
-</section>
-
-<!-- ═══════════ AI PROVIDERS & MODELS ═══════════ -->
-<section id="ai-providers" class="doc-section">
-    <h1>⚙ Providers &amp; Models</h1>
-    <p class="subtitle">Choose from three AI providers and select specific models for the best balance of quality, speed, and cost.</p>
-
-    <div class="provider-grid">
-        <div class="provider-card claude">
-            <div class="provider-icon" style="color:var(--claude);">✦</div>
-            <div class="provider-name">Claude</div>
-            <div class="provider-desc">Anthropic's Claude — excellent at structured JSON output, precise drawing instructions, and complex multi-step tasks.</div>
-            <div class="provider-key">Key: sk-ant-...</div>
-        </div>
-        <div class="provider-card gemini">
-            <div class="provider-icon" style="color:var(--gemini);">✸</div>
-            <div class="provider-name">Gemini</div>
-            <div class="provider-desc">Google's Gemini — fast and capable. Free tier available but limited to ~2 requests/minute.</div>
-            <div class="provider-key">Key: AIza...</div>
-        </div>
-        <div class="provider-card openai">
-            <div class="provider-icon" style="color:var(--openai);">⬡</div>
-            <div class="provider-name">ChatGPT</div>
-            <div class="provider-desc">OpenAI's GPT-4o and variants — highly capable, pay-as-you-go, reliable for creative and technical tasks.</div>
-            <div class="provider-key">Key: sk-...</div>
-        </div>
-    </div>
-
-    <h2>Available Models</h2>
-    <table class="tbl">
-        <thead><tr><th>Provider</th><th>Model</th><th>Notes</th></tr></thead>
-        <tbody>
-            <tr><td style="color:var(--claude);font-size:13px;">✦</td><td><code>claude-sonnet-4-20250514</code></td><td>Default — best balance of speed and quality</td></tr>
-            <tr><td style="color:var(--claude);font-size:13px;">✦</td><td><code>claude-haiku-4-5-20251001</code></td><td>Faster, cheaper — good for simple tasks</td></tr>
-            <tr><td style="color:var(--gemini);font-size:13px;">✸</td><td><code>gemini-2.0-flash</code></td><td>Default — fast and capable</td></tr>
-            <tr><td style="color:var(--gemini);font-size:13px;">✸</td><td><code>gemini-1.5-pro</code></td><td>More capable, slower</td></tr>
-            <tr><td style="color:var(--gemini);font-size:13px;">✸</td><td><code>gemini-1.5-flash</code></td><td>Faster, lighter</td></tr>
-            <tr><td style="color:var(--openai);font-size:13px;">⬡</td><td><code>gpt-4o</code></td><td>Default — OpenAI's flagship multimodal model</td></tr>
-            <tr><td style="color:var(--openai);font-size:13px;">⬡</td><td><code>gpt-4o-mini</code></td><td>Faster and cheaper than GPT-4o</td></tr>
-            <tr><td style="color:var(--openai);font-size:13px;">⬡</td><td><code>gpt-3.5-turbo</code></td><td>Cheapest option, less capable</td></tr>
-        </tbody>
-    </table>
-
-    <h2>Automatic Fallback</h2>
-    <p>If a model hits its rate limit, the agent automatically tries the next lighter model in the chain before giving up. This is the fallback order per provider:</p>
-    <ul>
-        <li><strong>Claude:</strong> <code>claude-sonnet-4-20250514</code> → <code>claude-haiku-4-5-20251001</code></li>
-        <li><strong>Gemini:</strong> <code>gemini-2.0-flash</code> → <code>gemini-1.5-flash</code> → <code>gemini-1.0-pro</code></li>
-        <li><strong>ChatGPT:</strong> <code>gpt-4o</code> → <code>gpt-4o-mini</code> → <code>gpt-3.5-turbo</code></li>
-    </ul>
-</section>
-
-<!-- ═══════════ AI COMMANDS REFERENCE ═══════════ -->
-<section id="ai-commands" class="doc-section">
-    <h1>📋 Commands Reference</h1>
-    <p class="subtitle">Every canvas function the AI Agent can call. You don't need to use these directly — just describe what you want and the agent picks the right ones. This is a reference for power users.</p>
-
-    <div class="alert blue">
-        <h4><i class="fa-solid fa-info-circle"></i> Coordinate System</h4>
-        <p>All coordinates are <strong>artboard-relative</strong>: (0, 0) = top-left corner of the artboard. The default artboard is 2550 × 3300 px (8.5 × 11 in at 300 PPI). Center = (1275, 1650). Keep shapes within 0–2550 x and 0–3300 y.</p>
-    </div>
-
-    <h2>Drawing Functions</h2>
-    <div class="fn-grid">
-        <div class="fn-item"><code>drawRect(x, y, w, h, fill, stroke, sw)</code><small>Draw a rectangle at (x,y) with given size and style</small></div>
-        <div class="fn-item"><code>drawEllipse(cx, cy, w, h, fill, stroke, sw)</code><small>Draw an ellipse centered at (cx,cy)</small></div>
-        <div class="fn-item"><code>drawCircle(cx, cy, radius, fill, stroke, sw)</code><small>Shorthand for a perfect circle</small></div>
-        <div class="fn-item"><code>drawLine(x1, y1, x2, y2, stroke, sw)</code><small>Draw a straight line between two points</small></div>
-        <div class="fn-item"><code>drawText(text, x, y, size, fill, font)</code><small>Place text at (x,y) with font size and color</small></div>
-        <div class="fn-item"><code>drawStar(cx, cy, pts, outerR, innerR, fill, stroke)</code><small>Draw a star polygon with N points</small></div>
-        <div class="fn-item"><code>drawPolygon(cx, cy, sides, radius, fill, stroke, sw)</code><small>Draw a regular polygon (triangle, hexagon, etc.)</small></div>
-        <div class="fn-item"><code>drawPath(points[], closed, fill, stroke, sw)</code><small>Draw from an array of {x,y} points</small></div>
-        <div class="fn-item"><code>drawPencilShape(points[], fill, stroke, sw)</code><small>Draw a smooth closed freeform shape</small></div>
-    </div>
-
-    <h2>Selection</h2>
-    <div class="fn-grid">
-        <div class="fn-item"><code>selectAll()</code><small>Select every item on the active layer</small></div>
-        <div class="fn-item"><code>deselectAll()</code><small>Deselect all items</small></div>
-        <div class="fn-item"><code>selectByIndex(i)</code><small>Select item at layer index i (0-based)</small></div>
-        <div class="fn-item"><code>selectByName(str)</code><small>Select all items whose name contains str</small></div>
-    </div>
-
-    <h2>Transform</h2>
-    <div class="fn-grid">
-        <div class="fn-item"><code>moveSelected(dx, dy)</code><small>Move selected items by delta pixels</small></div>
-        <div class="fn-item"><code>scaleSelected(sx, sy)</code><small>Scale selected items (1.0 = no change)</small></div>
-        <div class="fn-item"><code>rotateSelected(degrees)</code><small>Rotate selected items around their center</small></div>
-        <div class="fn-item"><code>flipSelectedH()</code><small>Flip selected items horizontally</small></div>
-        <div class="fn-item"><code>flipSelectedV()</code><small>Flip selected items vertically</small></div>
-    </div>
-
-    <h2>Styling</h2>
-    <div class="fn-grid">
-        <div class="fn-item"><code>setFillColor(hex)</code><small>Set fill color of selected items. Pass null for no fill.</small></div>
-        <div class="fn-item"><code>setStrokeColor(hex)</code><small>Set stroke color. Pass null for no stroke.</small></div>
-        <div class="fn-item"><code>setStrokeWidth(n)</code><small>Set stroke width in pixels</small></div>
-        <div class="fn-item"><code>setOpacity(0–100)</code><small>Set opacity percentage</small></div>
-        <div class="fn-item"><code>applyLinearGradient(c1, c2, angle)</code><small>Apply linear gradient to selected items</small></div>
-        <div class="fn-item"><code>applyRadialGradient(c1, c2)</code><small>Apply radial gradient to selected items</small></div>
-    </div>
-
-    <h2>Arrangement</h2>
-    <div class="fn-grid">
-        <div class="fn-item"><code>groupSelected()</code><small>Group all selected items</small></div>
-        <div class="fn-item"><code>ungroupSelected()</code><small>Ungroup selected groups</small></div>
-        <div class="fn-item"><code>bringToFront()</code><small>Move selected items to front of layer</small></div>
-        <div class="fn-item"><code>sendToBack()</code><small>Move selected items to back of layer</small></div>
-        <div class="fn-item"><code>deleteSelected()</code><small>Delete selected items</small></div>
-        <div class="fn-item"><code>duplicateSelected()</code><small>Duplicate selected items with offset</small></div>
-        <div class="fn-item"><code>alignLeft() / alignRight()</code><small>Align selection to left / right edge</small></div>
-        <div class="fn-item"><code>alignTop() / alignBottom()</code><small>Align selection to top / bottom edge</small></div>
-        <div class="fn-item"><code>alignCenterX() / alignCenterY()</code><small>Center selection on X or Y axis</small></div>
-    </div>
-
-    <h2>Canvas &amp; Artboard</h2>
-    <div class="fn-grid">
-        <div class="fn-item"><code>clearCanvas()</code><small>Remove all user items from the canvas</small></div>
-        <div class="fn-item"><code>fitToScreen()</code><small>Zoom artboard to fit the viewport</small></div>
-        <div class="fn-item"><code>setZoom(percent)</code><small>Set canvas zoom level (e.g. 100 = 100%)</small></div>
-        <div class="fn-item"><code>createCropmarks(bleedInches)</code><small>Add crop marks around selected item. Pass 0.125 for standard bleed.</small></div>
-        <div class="fn-item"><code>newArtboard()</code><small>Add a new artboard to the canvas</small></div>
-        <div class="fn-item"><code>saveState()</code><small>Save the current state to the undo stack</small></div>
-        <div class="fn-item"><code>undo()</code><small>Undo the last action</small></div>
-        <div class="fn-item"><code>redo()</code><small>Redo the last undone action</small></div>
-    </div>
-
-    <h2>Pathfinder</h2>
-    <div class="fn-grid">
-        <div class="fn-item"><code>pathfinderUnite()</code><small>Merge selected paths into one shape</small></div>
-        <div class="fn-item"><code>pathfinderSubtract()</code><small>Subtract front shape from back shape</small></div>
-        <div class="fn-item"><code>pathfinderIntersect()</code><small>Keep only the overlapping area</small></div>
-        <div class="fn-item"><code>pathfinderExclude()</code><small>Keep only the non-overlapping areas</small></div>
-    </div>
-
-    <h2>Example Prompts</h2>
-    <table class="tbl">
-        <thead><tr><th>Prompt</th><th>What Happens</th></tr></thead>
-        <tbody>
-            <tr><td style="font-size:12px;color:var(--text);">"Draw a monkey face in the center"</td><td>Multiple drawCircle + drawEllipse + drawPath calls build a full monkey face illustration</td></tr>
-            <tr><td style="font-size:12px;color:var(--text);">"Create cropmarks for my selection with 0.125 inch bleed"</td><td>Calls <code>createCropmarks(0.125)</code> on the selected object</td></tr>
-            <tr><td style="font-size:12px;color:var(--text);">"Draw a red circle, blue rectangle, and yellow star side by side"</td><td>Three draw calls positioned across the artboard center</td></tr>
-            <tr><td style="font-size:12px;color:var(--text);">"Select all and group them"</td><td><code>selectAll()</code> then <code>groupSelected()</code></td></tr>
-            <tr><td style="font-size:12px;color:var(--text);">"Apply a linear gradient from pink to purple at 45 degrees"</td><td><code>applyLinearGradient('#ff6b9d', '#9b59b6', 45)</code></td></tr>
-            <tr><td style="font-size:12px;color:var(--text);">"Draw 5 concentric circles with different colors"</td><td>Five <code>drawCircle</code> calls with decreasing radii and different fills</td></tr>
-            <tr><td style="font-size:12px;color:var(--text);">"Rotate the selected object 45 degrees"</td><td><code>rotateSelected(45)</code></td></tr>
-            <tr><td style="font-size:12px;color:var(--text);">"Add text 'Hello World' in large red letters at the top"</td><td><code>drawText('Hello World', 1275, 200, 72, '#e74c3c')</code></td></tr>
-        </tbody>
-    </table>
-</section>
-
-<!-- ═══════════ AI TIPS & LIMITS ═══════════ -->
-<section id="ai-tips" class="doc-section">
-    <h1>💡 Tips &amp; Rate Limits</h1>
-    <p class="subtitle">Getting the best results from the AI Agent, and how rate limits are handled.</p>
-
-    <h2>Writing Good Prompts</h2>
-    <ul>
-        <li><strong>Be specific about position</strong> — "in the center", "top-left corner", "below the circle" all help the agent place things correctly.</li>
-        <li><strong>Name colors</strong> — "bright red", "#ff6b6b", "dark navy blue" all work well.</li>
-        <li><strong>Break big tasks into steps</strong> — "First draw the background shapes, then add the text" gives better results than one giant request.</li>
-        <li><strong>Reference existing items</strong> — "Select the rectangle I just drew and make it blue" works because the agent sees the canvas state.</li>
-        <li><strong>Ask follow-up questions</strong> — The agent remembers the last 7 exchanges, so you can refine your request: "Make the eyes bigger" after drawing a face.</li>
-    </ul>
-
-    <h2>Rate Limit Handling</h2>
-    <p>The agent handles API rate limits (HTTP 429) automatically with <strong>exponential backoff and model fallback</strong>:</p>
-    <ol>
-        <li>On first 429 — waits <strong>15 seconds</strong>, shows a live countdown, then retries</li>
-        <li>On second 429 — waits <strong>30 seconds</strong></li>
-        <li>On third 429 — waits <strong>60 seconds</strong></li>
-        <li>If all retries fail on the current model — automatically switches to the next lighter model in the fallback chain</li>
-        <li>If all models are exhausted — shows a friendly error with upgrade options</li>
-    </ol>
-
-    <div class="alert" style="border-left-color:var(--gemini);background:rgba(66,133,244,.07);">
-        <h4 style="color:var(--gemini);">✸ Gemini Free Tier Limits</h4>
-        <p>Google's free Gemini tier allows approximately <strong>2 requests per minute</strong> and 50 requests per day. If you use the agent frequently, consider upgrading at <a href="https://aistudio.google.com/plan" target="_blank">aistudio.google.com/plan</a> or switching to Claude or ChatGPT for higher limits.</p>
-    </div>
-
-    <div class="alert green">
-        <h4><i class="fa-solid fa-check"></i> Tip — Reduce Prompt Size</h4>
-        <p>Shorter, focused prompts use fewer tokens and are less likely to hit rate limits. Instead of describing your entire project in one message, break it into smaller tasks.</p>
-    </div>
-
-    <h2>Known Limitations</h2>
-    <ul>
-        <li>The agent cannot <em>read</em> pixel content of raster images placed on the canvas — it can move or delete them but not describe their visual content.</li>
-        <li>Very complex illustrations (100+ shapes) may take multiple rounds of prompting to refine.</li>
-        <li>The agent works best when iGuhit is run from a local HTTP server, not a <code>file://</code> URL.</li>
-        <li>Conversation history is kept in memory — it resets if you reload the page. Use the ⟳ clear button to manually reset context when starting a new project.</li>
-    </ul>
-
-    <h2>Switching Providers Mid-Session</h2>
-    <p>Open <strong>⚙ Settings → Provider</strong>, select a different provider, and click <strong>Save</strong>. The chat resets and the header updates to reflect the new provider color and icon. All three providers use the same set of canvas commands, so the agent's capability is identical regardless of which one you choose.</p>
-</section>
-
-<!-- ═══════════ CHANGELOG ═══════════ -->
+<!-- ═══════════════════════ CHANGELOG ═══════════════════════ -->
 <section id="changelog" class="doc-section">
     <h1>📋 Changelog</h1>
     <p class="subtitle">Complete history of features built and fixed across all versions.</p>
 
-    <h2>Version 5.0 — AI Agent <span class="badge v5">Latest</span></h2>
-    <ul class="log-list">
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Multi-Provider AI Agent</span><span class="log-desc">A floating chat panel powered by Claude (Anthropic), Gemini (Google), or ChatGPT (OpenAI). Full natural-language control of the canvas — draw, style, arrange, export, and more from a plain text prompt.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">⚙ Settings Panel (Provider / Model / API Keys)</span><span class="log-desc">Three-tab settings panel inside the agent: choose your AI provider, pick a specific model, and manage API keys for all three providers. Keys stored in localStorage, never shared.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Rate Limit Handling — Exponential Backoff</span><span class="log-desc">Automatic retry with 15s / 30s / 60s wait on HTTP 429. Live countdown timer shown in chat. Automatic fallback to lighter model if retries are exhausted.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Model Fallback Chain</span><span class="log-desc">If the selected model hits quota, the agent automatically tries the next model in the provider's fallback chain (e.g. flash → flash-lite → pro) before giving up.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Canvas Context Awareness</span><span class="log-desc">The agent reads the current canvas state (items, colors, selected objects, artboard size) before every response so it always knows what's on screen.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Full Canvas API (30+ functions)</span><span class="log-desc">Drawing (rect, ellipse, circle, line, text, star, polygon, path, pencil), selection, transform, styling, arrangement, alignment, pathfinder, cropmarks, undo/redo, and more.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Provider-Accented UI</span><span class="log-desc">Header icon and accent color update dynamically to match the selected provider — orange for Claude, blue for Gemini, green for ChatGPT.</span></div></li>
-    </ul>
-
-    <h2>Version 4.0 — Features Pack <span class="badge v4">v4</span></h2>
+    <h2>Version 4.0 — Features Pack <span class="badge v4">Latest</span></h2>
     <ul class="log-list">
         <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Gradient Fill (Linear &amp; Radial)</span><span class="log-desc">Apply two-stop linear or radial gradients to any selected object. Control angle, color stops, and stop positions. SVG/PDF compatible.</span></div></li>
         <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Pattern Fill</span><span class="log-desc">Five built-in tiled patterns (Dots, Lines, Grid, Diagonal, Checker) applied as clipped raster groups. Pick color and tile size.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Symbol / Component Library</span><span class="log-desc">Save any selection as a named symbol. Place unlimited copies from a visual library grid.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Snap to Grid</span><span class="log-desc">Configurable grid overlay with blue dot lines. All draw tools snap to nearest grid intersection. Toggle Ctrl+Shift+\.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Image Embed (Place)</span><span class="log-desc">Import PNG, JPG, GIF, WebP, or SVG files directly onto the canvas. Auto-scales to fit artboard. Embedded as base64 data.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Tapered Brush Tool (Shift+B)</span><span class="log-desc">Draw variable-width freehand strokes that taper to a point. Converts to a filled vector shape on mouse release.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Export PNG per Artboard</span><span class="log-desc">One PNG per artboard at 2× resolution. Files named Artboard-1.png, Artboard-2.png etc.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Symbol / Component Library</span><span class="log-desc">Save any selection as a named symbol. Place unlimited copies from a visual library grid. Delete from library without affecting placed copies.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Snap to Grid</span><span class="log-desc">Configurable grid overlay with blue dot lines. All draw tools snap to nearest grid intersection. Toggle Ctrl+Shift+\ or Adv panel button.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Image Embed (Place)</span><span class="log-desc">Import PNG, JPG, GIF, WebP, or SVG files directly onto the canvas. Auto-scales to fit artboard. Embedded as base64 data — self-contained file.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Tapered Brush Tool (Shift+B)</span><span class="log-desc">Draw variable-width freehand strokes that taper to a point. Converts to a filled vector shape (closed Path) on mouse release. Fully scalable.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Export PNG per Artboard</span><span class="log-desc">One PNG per artboard at 2× resolution. Files named Artboard-1.png, Artboard-2.png etc. Artboard chrome hidden during capture.</span></div></li>
     </ul>
 
     <h2>Version 3.0</h2>
     <ul class="log-list">
         <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Rulers (inch-default, red)</span><span class="log-desc">Horizontal/vertical canvas rulers. Default inches at 96 PPI. Red tick marks and labels. Toggle Ctrl+R.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Smart Guides (SVG overlay)</span><span class="log-desc">Magenta snap lines as SVG elements. Snaps to object edges, centers, and artboard.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Artboard Tool (Shift+A)</span><span class="log-desc">Select, resize, reposition, and delete artboards. Drag moves all content inside.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Smart Guides (SVG overlay)</span><span class="log-desc">Magenta snap lines as SVG elements. Guaranteed visible above canvas. Snaps to object edges, centers, and artboard.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Artboard Tool (Shift+A)</span><span class="log-desc">Select, resize, reposition, and delete artboards. Drag moves all content inside. W/H inputs target selected artboard.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Layer Radio Button + Visibility</span><span class="log-desc">Click radio to select/deselect all items in a layer. Eye icon toggles layer visibility.</span></div></li>
         <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Step &amp; Repeat (Ctrl+D)</span><span class="log-desc">Properties panel: Count, ΔX, ΔY. Duplicates N times with cumulative offsets.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Adobe Illustrator Import &amp; Export</span><span class="log-desc">Import .ai/.svg, export Illustrator-compatible SVG with adobe xmlns namespaces.</span></div></li>
-        <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">PDF Export Fix — True Vector</span><span class="log-desc">Raw PDF content streams with real Bézier operators. Opens in Illustrator as editable paths.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-plus log-icon new"></i><div class="log-body"><span class="log-title">Adobe Illustrator Import &amp; Export</span><span class="log-desc">File menu: import .ai/.svg, export Illustrator-compatible SVG with adobe xmlns namespaces.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">PDF Export Fix — True Vector</span><span class="log-desc">Raw PDF content streams with real Bézier operators. One download, no side files. Opens in Illustrator as editable paths.</span></div></li>
         <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">Cropmarks — AI Style, Grouped</span><span class="log-desc">0.25pt strokes, 8.5pt gap, 14pt length. All 8 lines in one named group for clean layers.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">Arrowheads Fix</span><span class="log-desc">Arrow Start/End draw filled triangle or circle vector shapes at path endpoints, redrawn every view update.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">Eraser Bug Fix</span><span class="log-desc">Dedicated eraserPath variable — works reliably for any number of erase operations.</span></div></li>
     </ul>
 
     <h2>Version 2.0</h2>
     <ul class="log-list">
         <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">Type Tool Font Controls</span><span class="log-desc">Font Family, Size, Weight, Style in control bar. Syncs from selected text.</span></div></li>
         <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">Rectangle Corner Radius</span><span class="log-desc">Per-corner radii with link toggle. Bezier arc (k=0.5523). Adobe Illustrator style.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">Direct Selection Segment Types</span><span class="log-desc">Smooth, Corner, Handle-In, Handle-Out buttons in control bar.</span></div></li>
         <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">Math Expression Evaluator</span><span class="log-desc">All numeric inputs evaluate math on Enter: 100/3, 24*2+4, (50+30)*2.</span></div></li>
+        <li class="log-item"><i class="fa-solid fa-circle-check log-icon done"></i><div class="log-body"><span class="log-title">Button Animations &amp; Sound</span><span class="log-desc">CSS ripple on all buttons. Web Audio API synthesized click tones.</span></div></li>
     </ul>
 
     <h2>Version 1.0 — Foundation</h2>
@@ -817,14 +495,14 @@
 </div><!-- /.content -->
 
 <script>
-function go(id){
-    document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
-    document.querySelectorAll('.doc-section').forEach(function(s){s.classList.remove('active');});
-    var section=document.getElementById(id);
-    if(section) section.classList.add('active');
-    var nav=Array.from(document.querySelectorAll('.nav-item')).find(function(n){return (n.getAttribute('onclick')||'').includes("'"+id+"'");});
-    if(nav) nav.classList.add('active');
-    document.querySelector('.content').scrollTop=0;
+function go(id) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.doc-section').forEach(s => s.classList.remove('active'));
+    var section = document.getElementById(id);
+    if (section) section.classList.add('active');
+    var nav = Array.from(document.querySelectorAll('.nav-item')).find(n => (n.getAttribute('onclick')||'').includes("'"+id+"'"));
+    if (nav) nav.classList.add('active');
+    document.querySelector('.content').scrollTop = 0;
 }
 </script>
 </body>
