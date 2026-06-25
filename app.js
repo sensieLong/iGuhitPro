@@ -1102,7 +1102,7 @@ function handleDirectSelectMouseDown(event) {
         handles: true,
         stroke: true,
         fill: true,
-        tolerance: 6,
+        tolerance: 15,
         match: (hit) => hit.item.layer.name !== 'System Artboard' && !hit.item.layer.locked
     });
     
@@ -1111,12 +1111,21 @@ function handleDirectSelectMouseDown(event) {
         item.selected = true;
         item.layer.activate();
         
-        if (hitResult.type === 'segment') {
+        if (hitResult.type === 'segment' && !event.modifiers.alt && !event.modifiers.shift && !event.modifiers.control) {
             dragTargetSegment = hitResult.segment;
-        } else if (hitResult.type === 'handle-in') {
-            dragTargetHandle = hitResult.segment.handleIn;
         } else if (hitResult.type === 'handle-out') {
             dragTargetHandle = hitResult.segment.handleOut;
+        } else if (hitResult.type === 'handle-in') {
+            dragTargetHandle = hitResult.segment.handleIn;
+
+        } else if (event.modifiers.alt && event.modifiers.shift && !event.modifiers.control && hitResult.type === 'segment') {
+            hitResult.segment.smooth();
+        } else if (event.modifiers.alt && !event.modifiers.control && hitResult.type === 'segment') {
+            hitResult.segment.handleIn = null;
+        } else if (event.modifiers.shift && !event.modifiers.control && hitResult.type === 'segment') {
+            hitResult.segment.handleOut = null;
+        } else if (event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt && hitResult.type === 'segment') {
+            hitResult.segment.remove();
         } else {
             dragTarget = item;
         }
@@ -1367,7 +1376,8 @@ function handlePenMouseDown(event) {
         // Hit test to close path
         const hitResult = paper.project.hitTest(event.point, {
             segments: true,
-            tolerance: 8
+            handles: true,
+            tolerance: 20
         });
         
         if (hitResult && hitResult.item === activePath && hitResult.segment === activePath.segments[0]) {
@@ -1375,7 +1385,17 @@ function handlePenMouseDown(event) {
             activePath.fullySelected = false;
             activePath.selected = true;
             finishActivePath();
-        } else {
+        }else if(event.modifiers.alt){
+            // hold alt then click anywhere to remove the handleOut
+            //alert('you hit the alt');
+            activePath.lastSegment.handleOut = null; 
+        }else if(event.modifiers.shift){
+            // if shift + x inside pen tool remove the last segment
+            activePath.lastSegment.handleIn = null; 
+        }else if(event.modifiers.control){
+            // if shift + x inside pen tool remove the last segment
+            activePath.lastSegment.remove(); 
+        }else{    
             activePath.add(new paper.Segment(event.point));
             activePath.fullySelected = true;
             isDraggingPenHandle = true;
@@ -3712,6 +3732,7 @@ function makeElementDraggable(element, handle) {
 // =====================================================
 
 let shapeBuilderPreview = null;
+var baseItem = null;
 
 function getShapeBuilderItems() {
     return getSelectedDrawItems().filter(item =>
@@ -3728,40 +3749,93 @@ function clearShapeBuilderPreview() {
 
 function handleShapeBuilderMouseDown(event) {
     const items = getShapeBuilderItems();
-
     if (items.length < 2) {
         alert('Select at least 2 overlapping shapes.');
         return;
     }
 
-    let result = items[0];
-
-    for (let i = 1; i < items.length; i++) {
-        try {
-            result = event.modifiers.alt
-                ? result.subtract(items[i])
-                : result.unite(items[i]);
-        } catch (err) {
-            console.warn(err);
-        }
-    }
-
-    items.forEach(item => {
-        if (item !== result) {
-            item.remove();
-        }
+    var hitResult = paper.project.hitTest(event.point, {
+        fill: true,
+        stroke: true,
+        tolerance: 2
     });
 
-    result.selected = true;
+    if (hitResult && hitResult.item && !event.modifiers.alt) {
+        var hitItem = hitResult.item;
+        // Verify the clicked item is in your array
+        if (items.indexOf(hitItem) !== -1) {
+            baseItem = hitItem;
+           // baseItem.fillColor = 'red'; // Active color feedback
+        }
+    }else if(hitResult && hitResult.item && event.modifiers.alt){
+        var hitItem = hitResult.item;
+        // Verify the clicked item is in your array
+        if (items.indexOf(hitItem) !== -1) {
+            baseItem = hitItem;
+            //alert('alt detected',baseItem);
+           // baseItem.fillColor = 'red'; // Active color feedback
+            console.log(items,baseItem);
+            items.forEach((item)=>{
+                if (item !== baseItem){
+                    item.subtract(baseItem);
+                    item.remove();
+                }
+            });
+        }
+    }
+}
+
+function handleShapeBuilderMouseDrag(event) {
+    const items = getShapeBuilderItems();
+    // If they didn't start the drag on a valid path, don't do anything
+    if (!baseItem) return;
+
+    var hitResult = paper.project.hitTest(event.point, {
+        fill: true,
+        stroke: true,
+        tolerance: 5 // Slightly higher tolerance makes dragging over items easier
+    });
+
+    if (!hitResult || !hitResult.item) return;
+
+    var hitItem = hitResult.item;
+    var itemIndex = items.indexOf(hitItem);
+
+    // If we drag over a valid path in our array that isn't our current base
+    if (itemIndex !== -1 && hitItem !== baseItem) {
+        
+        // Merge them together
+        var unitedPath = baseItem.unite(hitItem);
+
+        // Clean up the old geometry from the canvas canvas
+        baseItem.remove();
+        hitItem.remove();
+
+        // Remove the consumed item from the tracking array
+        items.splice(itemIndex, 1);
+
+        // Update our base reference to the newly expanded shape
+        baseItem = unitedPath;
+        //baseItem.fillColor = 'red'; 
+
+        // Keep the tracking array updated with the new path shape
+        var baseIndex = items.indexOf(baseItem);
+        if (baseIndex === -1) {
+            items.push(baseItem);
+        }
+    }
+}
+
+function handleShapeBuilderMouseUp(event) {
+    if (baseItem) {
+        //baseItem.fillColor = 'blue'; // Reset to finished state color
+        baseItem = null; // Clear reference until the next click-and-drag
+    }
 
     saveState();
     updateLayersUI();
     paper.view.draw();
-}
 
-function handleShapeBuilderMouseDrag(event) {}
-
-function handleShapeBuilderMouseUp(event) {
     clearShapeBuilderPreview();
 }
 
