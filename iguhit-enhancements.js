@@ -283,6 +283,20 @@
     // ═══════════════════════════════════════════════════════════════════
     // 6. TYPE TOOL FONT CONTROLS
     // ═══════════════════════════════════════════════════════════════════
+    // Fallback compose/decompose helpers in case the type-panel addon hasn't
+    // loaded yet — paper.js has no native italic support for text, so italic
+    // is baked into the fontWeight string ("italic 600") which paper.js
+    // concatenates as-is into the canvas font shorthand ("italic 600 24px …").
+    function composeWeightLocal(weight, italic) {
+        weight = String(weight || '400').replace(/^italic\s+/i, '');
+        return italic ? ('italic ' + weight) : weight;
+    }
+    function decomposeWeightLocal(weightStr) {
+        const s = String(weightStr || '400').trim();
+        const m = /^italic\s+(.+)$/i.exec(s);
+        return m ? { weight: m[1], italic: true } : { weight: s, italic: false };
+    }
+
     function syncFontControls(item) {
         if (!(item instanceof paper.PointText)) return;
         const ff = document.getElementById('ctrl-font-family');
@@ -294,24 +308,47 @@
             if (m) ff.value = m.value;
         }
         if (fs) fs.value = Math.round(item.fontSize || 24);
-        if (fw && item.fontWeight) fw.value = item.fontWeight;
-        if (fi && item.fontStyle)  fi.value = item.fontStyle;
+        const decompose = window.__decomposeFontWeight || decomposeWeightLocal;
+        const decomposed = decompose(item.fontWeight);
+        if (fw && decomposed.weight) {
+            const match = Array.from(fw.options).find(o => o.value === decomposed.weight);
+            if (match) fw.value = decomposed.weight;
+        }
+        if (fi) fi.value = decomposed.italic ? 'italic' : 'normal';
+
+        if (window.__iguhitRefreshTypePanel) window.__iguhitRefreshTypePanel(item);
     }
     window.__syncTypeFontControls = syncFontControls;
 
     function applyFont() {
         if (!window.paper) return;
-        const items = window.getSelectedDrawItems ? window.getSelectedDrawItems() : [];
+
         const ff = document.getElementById('ctrl-font-family')?.value;
         const fs = parseFloat(document.getElementById('ctrl-font-size')?.value) || 24;
-        const fw = document.getElementById('ctrl-font-weight')?.value;
+        const fwRaw = document.getElementById('ctrl-font-weight')?.value;
         const fi = document.getElementById('ctrl-font-style')?.value;
+        const italic = fi === 'italic';
+
+        // Route through the shared Type panel style applier when available so
+        // the quick control bar and the full Type window never drift apart.
+        if (window.__iguhitApplyTypeStyle) {
+            window.__iguhitApplyTypeStyle({
+                fontFamily: ff,
+                fontWeight: fwRaw,
+                italic: italic,
+                fontSize: fs
+            });
+            return;
+        }
+
+        // Fallback (used only if the type-panel addon failed to load)
+        const items = window.getSelectedDrawItems ? window.getSelectedDrawItems() : [];
+        const compose = window.__composeFontWeight || composeWeightLocal;
         items.forEach(item => {
             if (!(item instanceof paper.PointText)) return;
             if (ff) item.fontFamily = ff;
             if (fs > 0) item.fontSize = fs;
-            if (fw) item.fontWeight = fw;
-            if (fi) item.fontStyle = fi;
+            if (fwRaw) item.fontWeight = compose(fwRaw, italic);
         });
         paper.view.draw();
         if (window.saveState) saveState();

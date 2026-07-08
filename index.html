@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>iGuhit Vector - Professional Vector Graphics Editor</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;0,700;1,400&family=Montserrat:wght@400;500;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Oswald:wght@400;600;700&family=Pacifico&family=Bebas+Neue&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.12.17/paper-full.min.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -124,6 +125,7 @@
                     <div class="dropdown-menu">
                         <button id="toggle-layers-panel"><i class="fa-solid fa-check"></i> Layers Panel</button>
                         <button id="toggle-properties-panel"><i class="fa-solid fa-check"></i> Properties Panel</button>
+                        <button id="toggle-type-window">&nbsp;&nbsp;&nbsp;&nbsp; Type Panel</button>
                     </div>
                 </div>
                 <div class="menu-item">About
@@ -167,12 +169,19 @@
                 <option value="'Palatino Linotype', serif">Palatino</option>
                 <option value="Garamond, serif">Garamond</option>
                 <option value="'Brush Script MT', cursive">Brush Script</option>
+                <option value="'Poppins', sans-serif">Poppins</option>
+                <option value="'Montserrat', sans-serif">Montserrat</option>
+                <option value="'Playfair Display', serif">Playfair Display</option>
+                <option value="'Oswald', sans-serif">Oswald</option>
+                <option value="'Pacifico', cursive">Pacifico</option>
+                <option value="'Bebas Neue', sans-serif">Bebas Neue</option>
             </select>
             <input type="text" id="ctrl-font-size" value="24" class="number-input" style="width:42px;" title="Font Size">
             <span class="unit">pt</span>
             <select id="ctrl-font-weight" class="select-input" style="width:80px;" title="Font Weight">
-                <option value="400">Regular</option>
                 <option value="300">Light</option>
+                <option value="400">Regular</option>
+                <option value="500">Medium</option>
                 <option value="600" selected>Semibold</option>
                 <option value="700">Bold</option>
                 <option value="900">Black</option>
@@ -181,6 +190,9 @@
                 <option value="normal">Normal</option>
                 <option value="italic">Italic</option>
             </select>
+            <button id="btn-open-type-window" class="action-btn" title="Open Type Window (Character &amp; Paragraph)" style="padding:2px 6px;height:22px;">
+                <i class="fa-solid fa-window-restore"></i>
+            </button>
         </div>
         <div class="control-divider ctrl-ctx" id="type-tool-divider"></div>
 
@@ -539,6 +551,127 @@
                 <button id="btn-virtual-shift" class="keypad-btn" title="Toggle Shift">Shift</button>
             </div>
         </div>
+
+        <!-- Type Window — Illustrator-style Character/Paragraph floating panel -->
+        <div id="type-window" class="type-window" style="display:none;">
+            <div class="type-window-header" id="type-window-handle">
+                <span class="type-window-title"><i class="fa-solid fa-font"></i> Type</span>
+                <button class="type-window-close" id="btn-close-type-window" title="Close">&times;</button>
+            </div>
+            <div class="type-window-tabs">
+                <button class="type-tab-btn active" id="tp-tab-character" data-tp-tab="character">Character</button>
+                <button class="type-tab-btn" id="tp-tab-paragraph" data-tp-tab="paragraph">Paragraph</button>
+            </div>
+
+            <!-- CHARACTER TAB -->
+            <div class="type-tab-panel active" id="tp-panel-character">
+                <div class="type-row">
+                    <label>Font Family</label>
+                    <select id="tp-font-family" class="select-input" style="width:100%;">
+                        <option value="Inter, sans-serif">Inter</option>
+                        <option value="Arial, sans-serif">Arial</option>
+                        <option value="Georgia, serif">Georgia</option>
+                        <option value="'Times New Roman', serif">Times New Roman</option>
+                        <option value="'Courier New', monospace">Courier New</option>
+                        <option value="Verdana, sans-serif">Verdana</option>
+                        <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                        <option value="Impact, sans-serif">Impact</option>
+                        <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+                        <option value="Tahoma, sans-serif">Tahoma</option>
+                        <option value="'Palatino Linotype', serif">Palatino</option>
+                        <option value="Garamond, serif">Garamond</option>
+                        <option value="'Brush Script MT', cursive">Brush Script</option>
+                        <option value="'Poppins', sans-serif">Poppins</option>
+                        <option value="'Montserrat', sans-serif">Montserrat</option>
+                        <option value="'Playfair Display', serif">Playfair Display</option>
+                        <option value="'Oswald', sans-serif">Oswald</option>
+                        <option value="'Pacifico', cursive">Pacifico</option>
+                        <option value="'Bebas Neue', sans-serif">Bebas Neue</option>
+                        <option value="__custom__">Custom…</option>
+                    </select>
+                </div>
+                <div class="type-row" id="tp-font-custom-row" style="display:none;">
+                    <label>Custom Font Name</label>
+                    <input type="text" id="tp-font-custom" class="text-input" style="width:100%;" placeholder="e.g. Helvetica Neue">
+                </div>
+                <div class="type-row two-col">
+                    <div>
+                        <label>Weight</label>
+                        <select id="tp-font-weight" class="select-input" style="width:100%;">
+                            <option value="300">Light</option>
+                            <option value="400">Regular</option>
+                            <option value="500">Medium</option>
+                            <option value="600" selected>Semibold</option>
+                            <option value="700">Bold</option>
+                            <option value="900">Black</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Size</label>
+                        <div class="type-input-with-unit">
+                            <input type="number" id="tp-font-size" value="24" min="1" class="number-input" style="width:100%;">
+                            <span class="unit">pt</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="type-row">
+                    <label>Style</label>
+                    <div class="type-style-toggles">
+                        <button id="tp-btn-bold" class="type-toggle-btn" title="Bold"><i class="fa-solid fa-bold"></i></button>
+                        <button id="tp-btn-italic" class="type-toggle-btn" title="Italic"><i class="fa-solid fa-italic"></i></button>
+                    </div>
+                </div>
+                <div class="type-row two-col">
+                    <div>
+                        <label>Leading <span class="type-note">(line spacing)</span></label>
+                        <div class="type-input-with-unit">
+                            <input type="number" id="tp-leading" value="29" min="0" class="number-input" style="width:100%;">
+                            <span class="unit">pt</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="text-transform:none;"><input type="checkbox" id="tp-leading-auto" checked> Auto</label>
+                    </div>
+                </div>
+                <div class="type-row">
+                    <label>Vertical Scale <span class="type-note">(text height)</span></label>
+                    <div class="type-input-with-unit">
+                        <input type="number" id="tp-vscale" value="100" min="10" max="500" class="number-input" style="width:100%;">
+                        <span class="unit">%</span>
+                    </div>
+                </div>
+                <div class="type-row">
+                    <label>Tracking <span class="type-note">(letter spacing)</span></label>
+                    <div class="type-input-with-unit">
+                        <input type="range" id="tp-tracking" min="-100" max="500" step="10" value="0" class="range-slider" style="flex:1;">
+                        <input type="number" id="tp-tracking-val" value="0" class="number-input" style="width:52px;">
+                    </div>
+                </div>
+                <div class="type-row">
+                    <label>Font Color</label>
+                    <div class="color-picker-wrapper" style="height:26px;">
+                        <input type="color" id="tp-font-color" value="#000000" style="width:100%;height:100%;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- PARAGRAPH TAB -->
+            <div class="type-tab-panel" id="tp-panel-paragraph">
+                <div class="type-row">
+                    <label>Alignment</label>
+                    <div class="type-align-group">
+                        <button id="tp-align-left" class="type-toggle-btn active" title="Align Left"><i class="fa-solid fa-align-left"></i></button>
+                        <button id="tp-align-center" class="type-toggle-btn" title="Align Center"><i class="fa-solid fa-align-center"></i></button>
+                        <button id="tp-align-right" class="type-toggle-btn" title="Align Right"><i class="fa-solid fa-align-right"></i></button>
+                    </div>
+                </div>
+                <p class="type-note type-help">Point type has no text box, so alignment pivots around the spot you clicked with the Type tool.</p>
+            </div>
+
+            <div class="type-window-footer">
+                <span id="tp-hint">Click the canvas with the Type tool (T) to place text, or double-click existing text to edit it. Esc cancels an edit.</span>
+            </div>
+        </div>
     </div>
 
     <!-- Bottom Status Bar -->
@@ -641,6 +774,7 @@
     <script src="advanced-features-addon.js"></script>
     <script src="iguhit-enhancements.js"></script>
     <script src="iguhit-features.js"></script>
+    <script src="type-panel.js"></script>
 
     <!-- ═══════════════════════════════════════════════
          RULER — self-contained, runs after Paper.js

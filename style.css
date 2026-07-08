@@ -1468,3 +1468,207 @@ button { overflow: hidden; position: relative; }
 /* Collapsible right sidebar */
 .right-panels.collapsed .panels-container { display: none; }
 .right-panels.collapsed { width: 36px; }
+
+/* ==========================================================
+   TYPE WINDOW — Illustrator-style floating Character/Paragraph panel
+   ========================================================== */
+.type-window {
+    position: fixed;
+    top: 76px;
+    right: 280px;
+    width: 240px;
+    background-color: var(--color-bg-panel);
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
+    z-index: 900;
+    overflow: hidden;
+    font-family: var(--font-family);
+    animation: modal-fadeIn 0.18s cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+
+.type-window-header {
+    height: 28px;
+    background-color: var(--color-bg-darker);
+    border-bottom: 1px solid var(--color-border-dark);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 10px;
+    cursor: move;
+    user-select: none;
+}
+
+.type-window-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-bright);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.type-window-close {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+.type-window-close:hover { color: var(--color-danger); }
+
+.type-window-tabs {
+    display: flex;
+    background-color: var(--color-bg-darker);
+    border-bottom: 1px solid var(--color-border-dark);
+}
+
+.type-tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--color-text-muted);
+    font-family: var(--font-family);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 7px 0;
+    cursor: pointer;
+}
+
+.type-tab-btn:hover { color: var(--color-text-main); }
+
+.type-tab-btn.active {
+    background-color: var(--color-bg-panel);
+    color: var(--color-accent);
+    border-bottom-color: var(--color-accent);
+}
+
+.type-tab-panel {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.type-tab-panel.active { display: flex; }
+
+.type-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.type-row.two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+}
+
+.type-row label {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.type-row.two-col label {
+    text-transform: none;
+    font-size: 11px;
+    color: var(--color-text-main);
+    letter-spacing: normal;
+}
+
+.type-note {
+    font-size: 9px;
+    text-transform: none;
+    color: var(--color-text-muted);
+    letter-spacing: normal;
+    font-weight: 400;
+}
+
+.type-help {
+    line-height: 1.5;
+    margin: 0;
+    padding-top: 2px;
+}
+
+.type-input-with-unit {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.type-input-with-unit .number-input { width: 100%; }
+
+.type-style-toggles,
+.type-align-group {
+    display: flex;
+    gap: 6px;
+}
+
+.type-toggle-btn {
+    background-color: var(--color-bg-darker);
+    border: 1px solid var(--color-border-light);
+    color: var(--color-text-main);
+    width: 30px;
+    height: 26px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.type-toggle-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text-bright);
+}
+
+.type-toggle-btn.active {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #000000;
+}
+
+.type-window-footer {
+    background-color: var(--color-bg-darker);
+    border-top: 1px solid var(--color-border-dark);
+    padding: 8px 10px;
+}
+
+#tp-hint {
+    font-size: 9.5px;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+    display: block;
+}
+
+/* In-canvas live text editor (used by the Type tool) */
+.iguhit-text-edit-overlay {
+    position: absolute;
+    background: transparent;
+    border: 1px dashed var(--color-accent);
+    outline: none;
+    resize: none;
+    overflow: hidden;
+    padding: 1px 2px;
+    margin: 0;
+    white-space: pre;
+    min-width: 24px;
+    min-height: 1em;
+    z-index: 500;
+    caret-color: var(--color-accent);
+}

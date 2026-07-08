@@ -1427,41 +1427,79 @@ function finishActivePath() {
 
 // --- TYPE TOOL (T) ---
 function handleTypeMouseDown(event) {
+    // Clicking on top of an existing text item edits it in place instead of
+    // creating a new one (matches Illustrator's Type tool behavior).
+    const existing = window.__iguhitFindTextAt ? window.__iguhitFindTextAt(event.point) : null;
+    if (existing) {
+        deselectAll();
+        existing.selected = true;
+        onSelectionChanged();
+        if (window.__startTypeEditing) {
+            window.__startTypeEditing(existing, { isNew: false });
+        }
+        return;
+    }
+
     deselectAll();
-    
-    // Get font settings from control bar (injected by enhancement pack)
+
+    // Prefer the full Type window's current settings (family, weight,
+    // italic, size, leading, tracking, alignment, color) when available so
+    // a new text item picks up whatever the person last configured there;
+    // otherwise fall back to the quick control bar.
+    const defaults = window.__iguhitGetTypeDefaults ? window.__iguhitGetTypeDefaults() : null;
+
     const fontFamilyEl = document.getElementById('ctrl-font-family');
     const fontSizeEl = document.getElementById('ctrl-font-size');
     const fontWeightEl = document.getElementById('ctrl-font-weight');
     const fontStyleEl = document.getElementById('ctrl-font-style');
-    
-    const fontFamily = fontFamilyEl ? fontFamilyEl.value : 'Inter, sans-serif';
-    const fontSize = fontSizeEl ? (parseFloat(fontSizeEl.value) || 24) : 24;
-    const fontWeight = fontWeightEl ? fontWeightEl.value : '600';
-    const fontStyleVal = fontStyleEl ? fontStyleEl.value : 'normal';
-    
-    // Show a styled prompt dialog
-    const textVal = prompt("Enter text:", "iGuhit Vector");
-    if (textVal) {
-        const textItem = new paper.PointText({
-            point: event.point,
-            content: textVal,
-            fontSize: fontSize,
-            fontFamily: fontFamily,
-            fontWeight: fontWeight,
-            fontStyle: fontStyleVal
-        });
-        setupShapeStyles(textItem);
-        textItem.selected = true;
-        
-        // Store font data for re-sync
-        if (fontFamilyEl) textItem.fontFamily = fontFamily;
-        
-        saveState();
-        onSelectionChanged();
-        
-        // Sync font controls with new item
-        if (window.__syncTypeFontControls) window.__syncTypeFontControls(textItem);
+
+    const fontFamily = defaults ? defaults.fontFamily : (fontFamilyEl ? fontFamilyEl.value : 'Inter, sans-serif');
+    const fontSize = defaults ? defaults.fontSize : (fontSizeEl ? (parseFloat(fontSizeEl.value) || 24) : 24);
+    const fontWeightBase = defaults ? defaults.fontWeight : (fontWeightEl ? fontWeightEl.value : '600');
+    const italic = defaults ? defaults.italic : (fontStyleEl ? fontStyleEl.value === 'italic' : false);
+    const fontWeight = window.__composeFontWeight ? window.__composeFontWeight(fontWeightBase, italic) : fontWeightBase;
+    const leadingAuto = defaults ? defaults.leadingAuto : true;
+    const leading = (defaults && !leadingAuto && defaults.leading) ? defaults.leading : fontSize * 1.2;
+    const tracking = defaults ? defaults.tracking : 0;
+    const justification = defaults ? defaults.justification : 'left';
+
+    // Create an empty text item and let the person type directly on the
+    // canvas (in-place editor), Illustrator-style, instead of a browser prompt().
+    const textItem = new paper.PointText({
+        point: event.point,
+        content: '',
+        fontSize: fontSize,
+        fontFamily: fontFamily,
+        fontWeight: fontWeight,
+        leading: leading,
+        justification: justification
+    });
+    textItem.data = textItem.data || {};
+    textItem.data.leadingAuto = leadingAuto;
+    textItem.data.tracking = tracking;
+
+    setupShapeStyles(textItem);
+    if (defaults && defaults.fillColorHex && !state.fillColorNone) {
+        textItem.fillColor = defaults.fillColorHex;
+    }
+    textItem.selected = true;
+
+    onSelectionChanged();
+
+    // Sync font controls with new item
+    if (window.__syncTypeFontControls) window.__syncTypeFontControls(textItem);
+
+    if (window.__startTypeEditing) {
+        window.__startTypeEditing(textItem, { isNew: true });
+    } else {
+        // Fallback in case the type-panel addon failed to load
+        const textVal = prompt("Enter text:", "iGuhit Vector");
+        if (textVal) {
+            textItem.content = textVal;
+            saveState();
+        } else {
+            textItem.remove();
+        }
     }
 }
 
@@ -4628,6 +4666,59 @@ function exportAllArtboardsPDF() {
                 boards.push({ rect: ab.rect, name: 'Artboard ' + (i + 2) });
         });
     }
+    if (!boards.length) {
+        // Bookkeeping (window.artboardRect / window.multiArtboards) can go
+        // stale after undo/redo or layer changes. Fall back to scanning the
+        // live document directly for anything flagged as an artboard.
+        try {
+            const artboardGroups = paper.project.getItems({ match: (i) => i.data && i.data.isArtboard });
+            artboardGroups.forEach((g, idx) => {
+                // Artboard groups are built as [shadow, rect, grid] (see createArtboardObject)
+                const rect = (g.children && g.children.length > 1) ? g.children[1] : null;
+                if (rect && rect.isInserted()) boards.push({ rect, name: 'Artboard ' + (idx + 1) });
+            });
+        } catch (e) {}
+    }
+
+    if (!boards.length) {
+        // Still nothing on the page — auto-create a default artboard sized
+        // to fit whatever artwork already exists, instead of blocking export.
+        try {
+            const contentItems = paper.project.getItems({
+                match: (i) => !i.guide && !(i.data && i.data.isArtboard) && !(i.data && i.data.isSelectionHelper) &&
+                               i.bounds && i.bounds.width > 0 && i.bounds.height > 0 &&
+                               (i instanceof paper.Path || i instanceof paper.CompoundPath ||
+                                i instanceof paper.PointText || i instanceof paper.Raster ||
+                                (i instanceof paper.Group && i.parent && i.parent === (window.drawLayer || i.parent)))
+            });
+            let bx = 0, by = 0, bw = state.artboardWidth || 800, bh = state.artboardHeight || 600;
+            if (contentItems.length) {
+                let unionBounds = contentItems[0].bounds.clone();
+                contentItems.forEach(i => { unionBounds = unionBounds.unite(i.bounds); });
+                const pad = 40;
+                bx = unionBounds.x - pad;
+                by = unionBounds.y - pad;
+                bw = Math.max(50, unionBounds.width + pad * 2);
+                bh = Math.max(50, unionBounds.height + pad * 2);
+            }
+            const created = createArtboardObject(bx, by, bw, bh);
+            created.rect.name = 'artboardRect';
+            if (window.artboardLayer) {
+                const wasLocked = window.artboardLayer.locked;
+                window.artboardLayer.locked = false;
+                window.artboardLayer.addChild(created.group);
+                window.artboardLayer.locked = wasLocked;
+            } else {
+                paper.project.activeLayer.addChild(created.group);
+            }
+            window.artboardRect = created.rect;
+            paper.view.draw();
+            boards.push({ rect: created.rect, name: 'Artboard 1' });
+        } catch (e) {
+            console.warn('Auto-artboard creation failed:', e);
+        }
+    }
+
     if (!boards.length) { alert('No artboard found. Please check your artboard is visible.'); return; }
 
     // ── Colour helpers ─────────────────────────────────
@@ -4748,9 +4839,171 @@ function exportAllArtboardsPDF() {
         return shName;
     }
 
+    // ── PDF font mapping ───────────────────────────────
+    // Standard PDF base-14 fonts need no embedding and are always available
+    // in any PDF viewer. We map each text item's family/weight/italic onto
+    // the closest match so bold, italic, and serif/sans/monospace choices
+    // all survive export (full custom-font embedding is out of scope here).
+    const PDF_BASE_FONTS = [
+        'Helvetica', 'Helvetica-Bold', 'Helvetica-Oblique', 'Helvetica-BoldOblique',
+        'Times-Roman', 'Times-Bold', 'Times-Italic', 'Times-BoldItalic',
+        'Courier', 'Courier-Bold', 'Courier-Oblique', 'Courier-BoldOblique'
+    ];
+
+    function resolvePdfFont(item) {
+        const family = (item.fontFamily || '').toLowerCase();
+        const decomposed = window.__decomposeFontWeight
+            ? window.__decomposeFontWeight(item.fontWeight)
+            : { weight: item.fontWeight, italic: false };
+        const weightNum = parseInt(decomposed.weight, 10) || 400;
+        const isBold = weightNum >= 700; // Bold/Black map to a true Bold PDF font
+        const isItalic = !!decomposed.italic;
+
+        let group = 'Helvetica';
+        if (/times|georgia|palatino|garamond|playfair|serif/.test(family)) {
+            group = 'Times';
+        } else if (/courier|monospace/.test(family)) {
+            group = 'Courier';
+        }
+
+        let baseFont;
+        if (group === 'Times') {
+            baseFont = isBold && isItalic ? 'Times-BoldItalic' : isBold ? 'Times-Bold' : isItalic ? 'Times-Italic' : 'Times-Roman';
+        } else if (group === 'Courier') {
+            baseFont = isBold && isItalic ? 'Courier-BoldOblique' : isBold ? 'Courier-Bold' : isItalic ? 'Courier-Oblique' : 'Courier';
+        } else {
+            baseFont = isBold && isItalic ? 'Helvetica-BoldOblique' : isBold ? 'Helvetica-Bold' : isItalic ? 'Helvetica-Oblique' : 'Helvetica';
+        }
+
+        const idx = PDF_BASE_FONTS.indexOf(baseFont);
+        return { resource: 'F' + (idx + 1), baseFont: baseFont };
+    }
+
+    // Approximate on-screen line width (for center/right alignment) using
+    // the same font the person picked, via an offscreen canvas. The PDF's
+    // substituted base-14 font has slightly different metrics, but this is
+    // close enough to keep multi-line alignment visually correct.
+    const __pdfMeasureCanvas = document.createElement('canvas');
+    const __pdfMeasureCtx = __pdfMeasureCanvas.getContext('2d');
+    function measureLineWidth(text, item) {
+        try {
+            const decomposed = window.__decomposeFontWeight
+                ? window.__decomposeFontWeight(item.fontWeight)
+                : { weight: item.fontWeight, italic: false };
+            const style = decomposed.italic ? 'italic ' : '';
+            __pdfMeasureCtx.font = `${style}${decomposed.weight} ${item.fontSize || 12}px ${item.fontFamily || 'sans-serif'}`;
+            return __pdfMeasureCtx.measureText(text).width;
+        } catch (e) {
+            return text.length * (item.fontSize || 12) * 0.55;
+        }
+    }
+
+    // ── Text rasterization (font fidelity) ─────────────
+    // PDF's built-in fonts are limited to 14 standard faces with no
+    // embedding here, so a custom/web font (Poppins, Playfair, etc.) can
+    // never be reproduced with real PDF text. Instead we render the text
+    // exactly as the browser draws it — same font, weight, italic,
+    // tracking, leading, and alignment — onto an offscreen canvas, and
+    // embed that as an image. This guarantees the export always matches
+    // what's on the canvas, at the cost of the text no longer being
+    // selectable in the PDF.
+    const PDF_TEXT_SUPERSAMPLE = 3; // render at 3x for crisp print output
+
+    function bytesToBinaryString(bytes) {
+        let result = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+            result += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        return result;
+    }
+
+    function rasterizeTextItem(item) {
+        try {
+            const QS = PDF_TEXT_SUPERSAMPLE;
+            const fontSize = item.fontSize || 12;
+            const leading = item.leading || (fontSize * 1.2);
+            const lines = String(item.content || '').split('\n');
+            if (!lines.length || lines.every(l => !l)) return null;
+
+            const decomposed = window.__decomposeFontWeight
+                ? window.__decomposeFontWeight(item.fontWeight)
+                : { weight: item.fontWeight, italic: false };
+            const style = decomposed.italic ? 'italic ' : '';
+            const fontStr = `${style}${decomposed.weight} ${fontSize * QS}px ${item.fontFamily || 'sans-serif'}`;
+            const justification = item.justification || 'left';
+            const tracking = (item.data && item.data.tracking) || 0;
+
+            const measureCtx = __pdfMeasureCtx;
+            measureCtx.font = fontStr;
+            const letterSpacingSupported = 'letterSpacing' in measureCtx;
+            const trackPx = tracking ? (tracking / 1000) * fontSize * QS : 0;
+            if (letterSpacingSupported) {
+                try { measureCtx.letterSpacing = trackPx + 'px'; } catch (e) {}
+            }
+
+            let maxWidth = 0;
+            lines.forEach(line => { maxWidth = Math.max(maxWidth, measureCtx.measureText(line || ' ').width); });
+            const firstMetrics = measureCtx.measureText(lines[0] || 'Mg');
+            const ascent = firstMetrics.actualBoundingBoxAscent || fontSize * QS * 0.8;
+            const descentLast = fontSize * QS * 0.35; // room for descenders on the last line
+
+            const padX = fontSize * QS * 0.15;
+            const padTop = fontSize * QS * 0.12;
+            const canvasW = Math.max(1, Math.ceil(maxWidth + padX * 2));
+            const canvasH = Math.max(1, Math.ceil(ascent + padTop + leading * QS * (lines.length - 1) + descentLast));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = canvasW;
+            canvas.height = canvasH;
+            const ctx = canvas.getContext('2d');
+            ctx.font = fontStr;
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = justification === 'center' ? 'center' : justification === 'right' ? 'right' : 'left';
+            if (letterSpacingSupported) {
+                try { ctx.letterSpacing = trackPx + 'px'; } catch (e) {}
+            }
+            const fill = safeRGB(item.fillColor, [0, 0, 0]);
+            ctx.fillStyle = `rgb(${Math.round(fill[0] * 255)}, ${Math.round(fill[1] * 255)}, ${Math.round(fill[2] * 255)})`;
+
+            const anchorX = justification === 'center' ? canvasW / 2 : justification === 'right' ? (canvasW - padX) : padX;
+            const anchorY = padTop + ascent;
+
+            lines.forEach((line, i) => {
+                ctx.fillText(line, anchorX, anchorY + i * leading * QS);
+            });
+
+            const imgData = ctx.getImageData(0, 0, canvasW, canvasH);
+            const src = imgData.data; // RGBA, row-major, top row first
+            const pixelCount = canvasW * canvasH;
+            const rgb = new Uint8Array(pixelCount * 3);
+            const alpha = new Uint8Array(pixelCount);
+            for (let p = 0, s = 0; p < pixelCount; p++, s += 4) {
+                rgb[p * 3] = src[s];
+                rgb[p * 3 + 1] = src[s + 1];
+                rgb[p * 3 + 2] = src[s + 2];
+                alpha[p] = src[s + 3];
+            }
+
+            return {
+                rw: canvasW,
+                rh: canvasH,
+                rgbBytes: bytesToBinaryString(rgb),
+                alphaBytes: bytesToBinaryString(alpha),
+                localAnchorX: anchorX / QS,
+                localAnchorY: anchorY / QS,
+                localW: canvasW / QS,
+                localH: canvasH / QS
+            };
+        } catch (e) {
+            console.warn('Text rasterization failed, falling back to vector text:', e);
+            return null;
+        }
+    }
+
     // ── PDF coordinate transform ───────────────────────
     // ── Convert one Paper.js item to PDF content stream ops ──
-    function itemToOps(item, ox, oy, ph, shadings) {
+    function itemToOps(item, ox, oy, ph, shadings, images) {
         const ops = [];
 
         if (!item.visible || item.opacity === 0) return ops;
@@ -4862,23 +5115,99 @@ function exportAllArtboardsPDF() {
             }
 
         } else if (item instanceof paper.PointText) {
-            const fill = safeRGB(item.fillColor, [0,0,0]);
-            const fs   = item.fontSize || 12;
-            const x    = tx(item.point.x, ox);
-            const y    = ty(item.point.y, oy, ph);
-            const safe = (item.content || '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-            ops.push('BT');
-            ops.push(`/F1 ${r3(fs)} Tf`);
-            ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
-            ops.push(`${x} ${y} Td`);
-            ops.push(`(${safe}) Tj`);
-            ops.push('ET');
+            // Decompose the item's own transform (rotation/scale applied via
+            // the selection tool's handles) so it survives export — PointText
+            // keeps these in a separate matrix rather than baking them into
+            // fontSize/geometry like Path items do.
+            let scaleX = 1, scaleY = 1, rotation = 0;
+            try {
+                if (item.matrix && typeof item.matrix.decompose === 'function') {
+                    const dec = item.matrix.decompose();
+                    if (dec) {
+                        scaleX = (dec.scaling && typeof dec.scaling.x === 'number') ? dec.scaling.x : 1;
+                        scaleY = (dec.scaling && typeof dec.scaling.y === 'number') ? dec.scaling.y : 1;
+                        rotation = dec.rotation || 0;
+                    }
+                }
+            } catch (e) {}
+
+            // PDF glyphs/images are already right-side-up in PDF's Y-up page
+            // space (unlike vector path points, which genuinely need a Y
+            // flip). Reproducing the SAME visual rotation the person sees on
+            // the Y-down canvas therefore means negating the angle here, not
+            // flipping the matrix rows — flipping the rows is what caused
+            // text to render mirrored.
+            const rad = ((-rotation) * Math.PI) / 180;
+            const cosR = Math.cos(rad), sinR = Math.sin(rad);
+            const a = scaleX * cosR, b = scaleX * sinR, c = -scaleY * sinR, d = scaleY * cosR;
+
+            const baseE = tx(item.point.x, ox);
+            const baseF = ty(item.point.y, oy, ph);
+
+            const raster = rasterizeTextItem(item);
+
+            if (raster) {
+                // Place the rasterized text block: map its four corners
+                // (relative to its own local text-anchor point) through the
+                // same rotation/scale matrix used above, then solve for the
+                // single affine `cm` matrix PDF needs for image placement.
+                // Note: v must be up-positive here (matching how `d`/`c` were
+                // derived above), which is the opposite of the raster's own
+                // top-down pixel-row convention — hence localAnchorY - localH
+                // rather than localH - localAnchorY.
+                const u_bl = -raster.localAnchorX, v_bl = raster.localAnchorY - raster.localH;
+                const A = a * raster.localW;
+                const B = b * raster.localW;
+                const C = c * raster.localH;
+                const D = d * raster.localH;
+                const E = baseE + a * u_bl + c * v_bl;
+                const F = baseF + b * u_bl + d * v_bl;
+
+                const name = 'TX' + (Object.keys(images).length + 1);
+                images[name] = { rw: raster.rw, rh: raster.rh, rgbBytes: raster.rgbBytes, alphaBytes: raster.alphaBytes };
+
+                ops.push('q');
+                ops.push(`${r3(A)} ${r3(B)} ${r3(C)} ${r3(D)} ${r3(E)} ${r3(F)} cm`);
+                ops.push(`/${name} Do`);
+                ops.push('Q');
+            } else {
+                // Fallback: vector text via a standard PDF base-14 font.
+                // Won't match a custom web font exactly, but degrades
+                // gracefully if rasterization ever fails (e.g. empty text).
+                const fill = safeRGB(item.fillColor, [0,0,0]);
+                const fs   = item.fontSize || 12;
+                const leading = item.leading || (fs * 1.2);
+                const lines = String(item.content || '').split('\n');
+                const escape = (s) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+                const justification = item.justification || 'left';
+                const fontInfo = resolvePdfFont(item);
+
+                ops.push('BT');
+                ops.push(`/${fontInfo.resource} ${r3(fs)} Tf`);
+                ops.push(`${fill[0]} ${fill[1]} ${fill[2]} rg`);
+
+                lines.forEach((line, i) => {
+                    const lineWidth = measureLineWidth(line, item);
+                    let alignOffsetX = 0;
+                    if (justification === 'center') alignOffsetX = -lineWidth / 2;
+                    else if (justification === 'right') alignOffsetX = -lineWidth;
+
+                    const localY = -leading * i;
+                    const dX = a * alignOffsetX + c * localY;
+                    const dY = b * alignOffsetX + d * localY;
+
+                    ops.push(`${r3(a)} ${r3(b)} ${r3(c)} ${r3(d)} ${r3(baseE + dX)} ${r3(baseF + dY)} Tm`);
+                    ops.push(`(${escape(line)}) Tj`);
+                });
+                ops.push('ET');
+            }
 
         } else if (item instanceof paper.Raster) {
             // Embed raster image via base64 data URI as inline PDF image XObject
             try {
                 const b  = item.bounds;
                 // Get image as base64 PNG
+
                 const canvas2 = document.createElement('canvas');
                 canvas2.width  = Math.max(1, Math.round(item.width  || b.width));
                 canvas2.height = Math.max(1, Math.round(item.height || b.height));
@@ -4912,7 +5241,7 @@ function exportAllArtboardsPDF() {
         } else if (item instanceof paper.Group) {
             ops.push('q');
             item.children.forEach(child => {
-                ops.push(...itemToOps(child, ox, oy, ph, shadings));
+                ops.push(...itemToOps(child, ox, oy, ph, shadings, images));
             });
             ops.push('Q');
         }
@@ -4943,7 +5272,7 @@ function exportAllArtboardsPDF() {
 
     const catNum   = nextObj(); // 1 - catalog
     const pagesNum = nextObj(); // 2 - pages dict
-    const fontNum  = nextObj(); // 3 - font (Helvetica)
+    const fontNums = PDF_BASE_FONTS.map(() => nextObj()); // one object per base-14 font
 
     // We'll fill page object numbers after we know how many pages
     const pageNums = boards.map(() => nextObj());
@@ -4967,6 +5296,7 @@ function exportAllArtboardsPDF() {
     // Each page gets its own shadings dict so shading names don't conflict
     const contentStreams = [];
     const pageShadeObjs = []; // array of {name: dictStr} per page
+    const pageImageObjs = []; // array of {name: {rw, rh, rgbBytes, alphaBytes}} per page
 
     for (let i = 0; i < boards.length; i++) {
         const bounds = boards[i].rect.bounds;
@@ -4975,6 +5305,9 @@ function exportAllArtboardsPDF() {
 
         // Per-page shadings dict — populated by itemToOps via buildShading
         const shadings = {};
+        // Per-page rasterized-text images (font fidelity workaround — see
+        // rasterizeTextItem below) — populated by itemToOps
+        const images = {};
 
         const ops = [];
         // Scale all subsequent coordinates from paper-pixels to PDF points.
@@ -4996,7 +5329,7 @@ function exportAllArtboardsPDF() {
                 if (!child.isInserted() || !child.visible) return;
                 if (child.bounds && child.bounds.intersects(bounds)) {
                     ops.push('q');
-                    ops.push(...itemToOps(child, ox, oy, H, shadings));
+                    ops.push(...itemToOps(child, ox, oy, H, shadings, images));
                     ops.push('Q');
                 }
             });
@@ -5004,6 +5337,7 @@ function exportAllArtboardsPDF() {
 
         contentStreams.push(ops.join('\n'));
         pageShadeObjs.push(shadings);
+        pageImageObjs.push(images);
     }
 
     // ── Write objects ─────────────────────────────────
@@ -5019,10 +5353,12 @@ function exportAllArtboardsPDF() {
         `<< /Type /Pages\n   /Kids [${kidsStr}]\n   /Count ${boards.length}\n>>`
     );
 
-    // Font (Helvetica — standard PDF font, always available)
-    writeObj(fontNum,
-        `<< /Type /Font\n   /Subtype /Type1\n   /BaseFont /Helvetica\n   /Encoding /WinAnsiEncoding\n>>`
-    );
+    // Fonts (standard PDF base-14 fonts — always available, no embedding needed)
+    PDF_BASE_FONTS.forEach((baseFont, i) => {
+        writeObj(fontNums[i],
+            `<< /Type /Font\n   /Subtype /Type1\n   /BaseFont /${baseFont}\n   /Encoding /WinAnsiEncoding\n>>`
+        );
+    });
 
     // Write each page + its content stream
     for (let i = 0; i < boards.length; i++) {
@@ -5034,6 +5370,7 @@ function exportAllArtboardsPDF() {
         const pNum = pageNums[i];
         const stream = contentStreams[i];
         const shadings = pageShadeObjs[i];
+        const images = pageImageObjs[i];
 
         // Build Shading resource dict if this page has gradients
         const shadeKeys = Object.keys(shadings);
@@ -5043,12 +5380,43 @@ function exportAllArtboardsPDF() {
             shadeResource = `\n   /Shading << ${shEntries} >>`;
         }
 
+        // Write each rasterized-text image (+ its alpha mask) as a real PDF
+        // image XObject, and build the page's /XObject resource entries.
+        const imgKeys = Object.keys(images);
+        let xobjResource = '';
+        if (imgKeys.length > 0) {
+            const xEntries = imgKeys.map(k => {
+                const img = images[k];
+                const maskNum = nextObj();
+                const maskDict =
+                    `<< /Type /XObject\n   /Subtype /Image\n   /Width ${img.rw}\n   /Height ${img.rh}\n` +
+                    `   /ColorSpace /DeviceGray\n   /BitsPerComponent 8\n   /Length ${img.alphaBytes.length}\n>>`;
+                offsets[maskNum] = offset;
+                w(`${maskNum} 0 obj\n${maskDict}\nstream\n`);
+                w(img.alphaBytes);
+                w('\nendstream\nendobj\n');
+
+                const imgNum = nextObj();
+                const imgDict =
+                    `<< /Type /XObject\n   /Subtype /Image\n   /Width ${img.rw}\n   /Height ${img.rh}\n` +
+                    `   /ColorSpace /DeviceRGB\n   /BitsPerComponent 8\n   /SMask ${maskNum} 0 R\n   /Length ${img.rgbBytes.length}\n>>`;
+                offsets[imgNum] = offset;
+                w(`${imgNum} 0 obj\n${imgDict}\nstream\n`);
+                w(img.rgbBytes);
+                w('\nendstream\nendobj\n');
+
+                return `/${k} ${imgNum} 0 R`;
+            }).join(' ');
+            xobjResource = `\n   /XObject << ${xEntries} >>`;
+        }
+
         // Page object — MediaBox in PDF points (8.5×11in = 612×792pt)
+        const fontResourceEntries = PDF_BASE_FONTS.map((_, fi) => `/F${fi + 1} ${fontNums[fi]} 0 R`).join(' ');
         writeObj(pNum,
             `<< /Type /Page\n   /Parent ${pagesNum} 0 R\n` +
             `   /MediaBox [0 0 ${W_pt} ${H_pt}]\n` +
             `   /Contents ${cNum} 0 R\n` +
-            `   /Resources << /Font << /F1 ${fontNum} 0 R >>${shadeResource} >>\n>>`
+            `   /Resources << /Font << ${fontResourceEntries} >>${shadeResource}${xobjResource} >>\n>>`
         );
 
         // Content stream object
