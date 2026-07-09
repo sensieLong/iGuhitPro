@@ -587,12 +587,16 @@
                         <option value="'Oswald', sans-serif">Oswald</option>
                         <option value="'Pacifico', cursive">Pacifico</option>
                         <option value="'Bebas Neue', sans-serif">Bebas Neue</option>
-                        <option value="__custom__">Custom…</option>
+                        <option value="__custom__">Import Font File…</option>
                     </select>
                 </div>
                 <div class="type-row" id="tp-font-custom-row" style="display:none;">
-                    <label>Custom Font Name</label>
-                    <input type="text" id="tp-font-custom" class="text-input" style="width:100%;" placeholder="e.g. Helvetica Neue">
+                    <label>Custom Font</label>
+                    <button id="tp-font-file-btn" class="action-btn" style="width:100%;" type="button">
+                        <i class="fa-solid fa-upload"></i> Import Font File…
+                    </button>
+                    <input type="file" id="tp-font-file-input" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" style="display:none;">
+                    <span class="type-note" id="tp-font-file-hint"></span>
                 </div>
                 <div class="type-row two-col">
                     <div>
@@ -652,6 +656,19 @@
                     <div class="color-picker-wrapper" style="height:26px;">
                         <input type="color" id="tp-font-color" value="#000000" style="width:100%;height:100%;">
                     </div>
+                </div>
+                <div class="type-row two-col">
+                    <button id="tp-btn-type-on-circle" class="action-btn" style="width:100%;" type="button" title="Wrap the selected text around a circle, like Illustrator's Type on a Path">
+                        <i class="fa-solid fa-circle-notch"></i> Type on Circle
+                    </button>
+                    <button id="tp-btn-type-on-circle-inverted" class="action-btn" style="width:100%;" type="button" title="Same as Type on Circle, but flipped to the inside so it reads like a smile — matches Illustrator's Type on a Path 'Flip' option">
+                        <i class="fa-solid fa-face-smile"></i> Inverted
+                    </button>
+                </div>
+                <div class="type-row">
+                    <button id="tp-btn-edit-circle-text" class="action-btn" style="width:100%;" type="button" title="Edit the wording of the selected circle text (or just double-click the circle/letters on the canvas)">
+                        <i class="fa-solid fa-pen"></i> Edit Circle Text
+                    </button>
                 </div>
             </div>
 

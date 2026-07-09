@@ -987,6 +987,10 @@ function handleSelectMouseDrag(event) {
             if (dragTarget === item) {
                 dragTarget = newScaledItem;
             }
+
+            // Keep "Type on Circle" text glued to its path live, mid-drag —
+            // not just after releasing the mouse.
+            if (window.__iguhitRelayoutTypeOnPathFor) window.__iguhitRelayoutTypeOnPathFor(newScaledItem);
         });
         
         updateSelectionVisualState();
@@ -1024,6 +1028,8 @@ function handleSelectMouseDrag(event) {
         const selectedItems = getTopLevelSelectedDrawItems();
         selectedItems.forEach(item => {
             item.position = item.position.add(event.delta);
+            // Keep "Type on Circle" text glued to its path live while dragging.
+            if (window.__iguhitRelayoutTypeOnPathFor) window.__iguhitRelayoutTypeOnPathFor(item, event.delta);
         });
         updateSelectionVisualState();
     } else if (selectionMarquee) {
@@ -4907,7 +4913,19 @@ function exportAllArtboardsPDF() {
     // embed that as an image. This guarantees the export always matches
     // what's on the canvas, at the cost of the text no longer being
     // selectable in the PDF.
-    const PDF_TEXT_SUPERSAMPLE = 3; // render at 3x for crisp print output
+    //
+    // The supersample factor is computed relative to PDF_PPI (declared
+    // further below, but available here via closure by the time this
+    // actually runs) rather than fixed, because canvas-pixel units are
+    // scaled down by PX_TO_PT = 72/PDF_PPI on export. A fixed low factor
+    // looked crisp on a 300ppi artboard but soft on anything set lower —
+    // this guarantees a solid target resolution either way.
+    const PDF_TEXT_TARGET_DPI = 900;
+
+    function getTextSupersampleFactor() {
+        const ppi = (typeof PDF_PPI !== 'undefined' && PDF_PPI) ? PDF_PPI : (state.artboardResolution || 300);
+        return Math.min(12, Math.max(4, Math.ceil(PDF_TEXT_TARGET_DPI / ppi)));
+    }
 
     function bytesToBinaryString(bytes) {
         let result = '';
@@ -4920,7 +4938,7 @@ function exportAllArtboardsPDF() {
 
     function rasterizeTextItem(item) {
         try {
-            const QS = PDF_TEXT_SUPERSAMPLE;
+            const QS = getTextSupersampleFactor();
             const fontSize = item.fontSize || 12;
             const leading = item.leading || (fontSize * 1.2);
             const lines = String(item.content || '').split('\n');
