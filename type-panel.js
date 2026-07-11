@@ -348,6 +348,27 @@
         } catch (e) { return null; }
     }
 
+    // Given a selected item, figure out if it's part of a Type on Circle
+    // pair (either the ring itself or its text) and return the shared
+    // config + both halves — used so Character panel edits (color,
+    // tracking, font, etc.) work the same way after the fact as they do on
+    // ordinary text, since the panel otherwise only recognizes PointText.
+    function resolveTypeOnPathTarget(item) {
+        if (!item || !item.data) return null;
+        if (item.data.isTypeOnPathSource) {
+            var textGroup = findTypeOnPathTextFor(item);
+            if (textGroup && textGroup.data && textGroup.data.typeOnPath) {
+                return { cfg: textGroup.data.typeOnPath, textGroup: textGroup, pathItem: item };
+            }
+        } else if (item.data.isTypeOnPathText) {
+            if (item.data.typeOnPath) {
+                var pathItem = findTypeOnPathSourceFor(item);
+                if (pathItem) return { cfg: item.data.typeOnPath, textGroup: item, pathItem: pathItem };
+            }
+        }
+        return null;
+    }
+
     // Keeps a "Type on Circle" path and its text glued together, and
     // re-flows the letters whenever the path is reshaped — called right
     // before every saveState() so both are captured correctly in the very
@@ -403,6 +424,77 @@
                 }
             }
         } catch (e) {}
+    };
+
+    // When BOTH halves of a Type-on-Circle pair end up selected together
+    // (e.g. a marquee select that catches the ring and its text at once),
+    // each one moving+relaying-out the other would double up the delta
+    // every frame — text visibly racing ahead of the mouse. This tells the
+    // drag loop to skip a text group's own movement whenever its linked
+    // path is already being moved in the same batch, since the path's own
+    // relayout call already repositions it correctly.
+    window.__iguhitShouldSkipDragFor = function (item, allSelectedItems) {
+        try {
+            if (!item || !item.data || !item.data.isTypeOnPathText) return false;
+            var pathItem = findTypeOnPathSourceFor(item);
+            if (!pathItem) return false;
+            return allSelectedItems.indexOf(pathItem) !== -1;
+        } catch (e) { return false; }
+    };
+
+    function newTypeOnPathLinkId() {
+        return 'totp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+    }
+
+    // Duplicating (alt-drag, Ctrl+D, etc.) only clones whichever object the
+    // person actually had selected — usually just the circle, or just the
+    // text — since paper.js's clone() also copies our .data, the copy would
+    // otherwise share the SAME link id as the original and "steal" its
+    // partner instead of getting its own. This gives the clone a fresh id
+    // and clones its missing partner too, so it becomes a fully independent
+    // pair. Called from app.js right after each clone is created.
+    window.__iguhitHandleTypeOnPathClone = function (original, clone) {
+        try {
+            if (!original || !original.data || !clone) return;
+
+            if (original.data.isTypeOnPathSource) {
+                var newId = newTypeOnPathLinkId();
+                clone.data = clone.data || {};
+                clone.data.typeOnPathId = newId;
+
+                var origTextGroup = findTypeOnPathTextFor(original);
+                if (origTextGroup) {
+                    var textClone = origTextGroup.clone({ insert: false });
+                    textClone.data = textClone.data || {};
+                    textClone.data.isTypeOnPathText = true;
+                    textClone.data.sourcePathId = newId;
+                    // Deep-copy the config — clone() may only shallow-copy
+                    // .data, which would otherwise leave both text groups
+                    // sharing (and fighting over) the very same config object.
+                    textClone.data.typeOnPath = JSON.parse(JSON.stringify(origTextGroup.data.typeOnPath || {}));
+                    origTextGroup.parent ? origTextGroup.parent.addChild(textClone) : paper.project.activeLayer.addChild(textClone);
+                    layoutTextOnPath(textClone, clone);
+                }
+            } else if (original.data.isTypeOnPathText) {
+                var newId2 = newTypeOnPathLinkId();
+                clone.data = clone.data || {};
+                clone.data.isTypeOnPathText = true;
+                clone.data.sourcePathId = newId2;
+                clone.data.typeOnPath = JSON.parse(JSON.stringify(original.data.typeOnPath || {}));
+
+                var origPath = findTypeOnPathSourceFor(original);
+                if (origPath) {
+                    var pathClone = origPath.clone({ insert: false });
+                    pathClone.data = pathClone.data || {};
+                    pathClone.data.isTypeOnPathSource = true;
+                    pathClone.data.typeOnPathId = newId2;
+                    origPath.parent ? origPath.parent.addChild(pathClone) : paper.project.activeLayer.addChild(pathClone);
+                    layoutTextOnPath(clone, pathClone);
+                }
+            }
+        } catch (e) {
+            console.warn('iGuhit: type-on-path clone linking failed', e);
+        }
     };
 
     window.__iguhitApplyTypeOnCircle = function (flip) {
@@ -504,9 +596,20 @@
 
     window.__iguhitApplyTypeStyle = function (props) {
         if (!window.paper) return;
-        var items = (window.getSelectedDrawItems ? window.getSelectedDrawItems() : [])
-            .filter(function (i) { return i instanceof paper.PointText; });
-        if (!items.length) return;
+        var selected = window.getSelectedDrawItems ? window.getSelectedDrawItems() : [];
+        var items = selected.filter(function (i) { return i instanceof paper.PointText; });
+
+        var pathTargets = [];
+        var seenTextGroups = {};
+        selected.forEach(function (i) {
+            var resolved = resolveTypeOnPathTarget(i);
+            if (resolved && !seenTextGroups[resolved.textGroup.id]) {
+                seenTextGroups[resolved.textGroup.id] = true;
+                pathTargets.push(resolved);
+            }
+        });
+
+        if (!items.length && !pathTargets.length) return;
 
         items.forEach(function (item) {
             item.data = item.data || {};
@@ -552,6 +655,35 @@
                 var newScaleY = Math.max(0.1, props.verticalScalePercent / 100);
                 setItemLinearTransform(item, xformV.scaleX, newScaleY, xformV.rotation);
             }
+        });
+
+        // Type on Circle text: leading, alignment, and vertical scale don't
+        // have an equivalent here (there's no line-based paragraph and no
+        // per-item transform — only fontFamily/weight/italic/size/tracking/
+        // color apply, which is why those fields get disabled in the panel
+        // for this case).
+        pathTargets.forEach(function (target) {
+            var cfg = target.cfg;
+            if (props.fontFamily !== undefined && props.fontFamily) {
+                cfg.fontFamily = props.fontFamily;
+                ensureFontLoaded(props.fontFamily, cfg.fontWeight, cfg.fontSize);
+            }
+            if (props.fontWeight !== undefined || props.italic !== undefined) {
+                var curP = decomposeFontWeight(cfg.fontWeight);
+                var wP = props.fontWeight !== undefined ? props.fontWeight : curP.weight;
+                var itP = props.italic !== undefined ? props.italic : curP.italic;
+                cfg.fontWeight = composeFontWeight(wP, itP);
+            }
+            if (props.fontSize !== undefined && props.fontSize > 0) {
+                cfg.fontSize = props.fontSize;
+            }
+            if (props.tracking !== undefined && !isNaN(props.tracking)) {
+                cfg.tracking = props.tracking;
+            }
+            if (props.fillColorHex !== undefined) {
+                cfg.fillColorHex = props.fillColorHex;
+            }
+            layoutTextOnPath(target.textGroup, target.pathItem);
         });
 
         paper.view.draw();
@@ -603,11 +735,21 @@
         return items.length ? items[0] : null;
     }
 
+    function getSelectedTypeOnPathTarget() {
+        var selected = window.getSelectedDrawItems ? window.getSelectedDrawItems() : [];
+        for (var i = 0; i < selected.length; i++) {
+            var resolved = resolveTypeOnPathTarget(selected[i]);
+            if (resolved) return resolved;
+        }
+        return null;
+    }
+
     function refreshTypePanel(passedItem) {
         var win = document.getElementById('type-window');
         if (!win) return; // markup not present
 
         var item = (passedItem instanceof paper.PointText) ? passedItem : getEditingOrSelectedTextItem();
+        var pathTarget = item ? null : getSelectedTypeOnPathTarget();
 
         var ff = document.getElementById('tp-font-family');
         var customRow = document.getElementById('tp-font-custom-row');
@@ -625,6 +767,7 @@
         var aligns = { left: document.getElementById('tp-align-left'), center: document.getElementById('tp-align-center'), right: document.getElementById('tp-align-right') };
 
         var fontFamily, weight, italic, fontSize, leadingVal, leadingAutoVal, tracking, justification, colorHex, vscalePercent;
+        var naFields = false; // true when leading/alignment/vertical-scale don't apply (Type on Circle)
 
         if (item) {
             fontFamily = item.fontFamily || 'Inter, sans-serif';
@@ -640,6 +783,20 @@
             justification = item.justification || 'left';
             colorHex = item.fillColor ? item.fillColor.toCSS(true) : ((document.getElementById('fill-color') || {}).value || '#000000');
             vscalePercent = Math.round((xform.scaleY || 1) * 100);
+        } else if (pathTarget) {
+            var cfg = pathTarget.cfg;
+            naFields = true;
+            fontFamily = cfg.fontFamily || 'Inter, sans-serif';
+            var decomposedP = decomposeFontWeight(cfg.fontWeight);
+            weight = decomposedP.weight;
+            italic = decomposedP.italic;
+            fontSize = Math.round(cfg.fontSize || 24);
+            leadingAutoVal = true;
+            leadingVal = fontSize;
+            tracking = cfg.tracking || 0;
+            justification = 'left';
+            colorHex = cfg.fillColorHex || '#000000';
+            vscalePercent = 100;
         } else {
             fontFamily = (document.getElementById('ctrl-font-family') || {}).value || 'Inter, sans-serif';
             weight = (document.getElementById('ctrl-font-weight') || {}).value || '600';
@@ -671,17 +828,24 @@
         if (boldBtn) boldBtn.classList.toggle('active', (parseInt(weight, 10) || 400) >= 700);
         if (italicBtn) italicBtn.classList.toggle('active', !!italic);
         if (fs) fs.value = fontSize;
-        if (leading) { leading.value = leadingVal; leading.disabled = !!leadingAutoVal; }
-        if (leadingAuto) leadingAuto.checked = !!leadingAutoVal;
-        if (vscale) vscale.value = vscalePercent;
+        if (leading) { leading.value = leadingVal; leading.disabled = naFields || !!leadingAutoVal; }
+        if (leadingAuto) { leadingAuto.checked = !!leadingAutoVal; leadingAuto.disabled = naFields; }
+        if (vscale) { vscale.value = vscalePercent; vscale.disabled = naFields; }
         if (trackRange) trackRange.value = tracking;
         if (trackVal) trackVal.value = tracking;
         if (colorInput) colorInput.value = colorHex;
         Object.keys(aligns).forEach(function (key) {
-            if (aligns[key]) aligns[key].classList.toggle('active', justification === key);
+            if (aligns[key]) {
+                aligns[key].classList.toggle('active', justification === key);
+                aligns[key].disabled = naFields;
+            }
         });
+
+        var pathNote = document.getElementById('tp-path-text-note');
+        if (pathNote) pathNote.style.display = naFields ? '' : 'none';
     }
     window.__iguhitRefreshTypePanel = refreshTypePanel;
+
 
     function applyStyle(props) {
         if (window.__iguhitApplyTypeStyle) window.__iguhitApplyTypeStyle(props);
@@ -1189,11 +1353,15 @@
         trackVal?.addEventListener('change', function () { handleTrackingInput(this.value); });
 
         document.getElementById('tp-font-color')?.addEventListener('input', function () {
+            // Route through our own apply function so this correctly targets
+            // the TEXT color for both normal text and Type on Circle — the
+            // generic #fill-color swatch instead recolors whatever's
+            // selected (which, for Type on Circle, is the ring path).
+            applyStyle({ fillColorHex: this.value });
+            // Keep the quick-bar swatch's displayed value in sync without
+            // re-triggering its own independent apply logic.
             var fillInput = document.getElementById('fill-color');
-            if (fillInput) {
-                fillInput.value = this.value;
-                fillInput.dispatchEvent(new Event('input', { bubbles: true }));
-            }
+            if (fillInput) fillInput.value = this.value;
         });
 
         // --- Paragraph tab: alignment ---

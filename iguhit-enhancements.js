@@ -682,7 +682,9 @@
     document.getElementById('btn-export-ai')?.addEventListener('click', () => {
         if (!window.paper) return;
         const w = window.state?.artboardWidth || 800, h = window.state?.artboardHeight || 600;
-        const raw = paper.project.exportSVG({ asString: true, bounds: 'content', embedImages: true });
+        const raw = window.__iguhitWithTextExportFixes
+            ? window.__iguhitWithTextExportFixes({ bounds: 'content', embedImages: true })
+            : paper.project.exportSVG({ asString: true, bounds: 'content', embedImages: true });
         const body = (raw.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)||[])[1]||raw;
         const svg = `<?xml version="1.0" encoding="utf-8"?>\n<!-- Adobe Illustrator compatible SVG - iGuhit Vector -->\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/" version="1.1" width="${w}px" height="${h}px" viewBox="0 0 ${w} ${h}" xml:space="preserve"><metadata><sfw xmlns="http://ns.adobe.com/SaveForWeb/1.0/"><slices/></sfw></metadata><defs/>${body}</svg>`;
         const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([svg], {type:'image/svg+xml'})), download: 'iGuhit-Illustrator.svg' });

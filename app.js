@@ -969,6 +969,7 @@ function handleSelectMouseDrag(event) {
         const selection = getTopLevelSelectedDrawItems();
         selection.forEach((item, i) => {
             if (!item.data.originalClone) return;
+            if (window.__iguhitShouldSkipDragFor && window.__iguhitShouldSkipDragFor(item, selection)) return;
             const parent = item.parent;
             const originalClone = item.data.originalClone;
             const dragIndex = item.data.dragIndex;
@@ -1009,6 +1010,7 @@ function handleSelectMouseDrag(event) {
                         clone.position = item.data.dragStartPos.clone();
                     }
                     clone.insertBelow(item);
+                    if (window.__iguhitHandleTypeOnPathClone) window.__iguhitHandleTypeOnPathClone(item, clone);
                     return clone;
                 });
                 altClonesCreated = true;
@@ -1027,6 +1029,7 @@ function handleSelectMouseDrag(event) {
         
         const selectedItems = getTopLevelSelectedDrawItems();
         selectedItems.forEach(item => {
+            if (window.__iguhitShouldSkipDragFor && window.__iguhitShouldSkipDragFor(item, selectedItems)) return;
             item.position = item.position.add(event.delta);
             // Keep "Type on Circle" text glued to its path live while dragging.
             if (window.__iguhitRelayoutTypeOnPathFor) window.__iguhitRelayoutTypeOnPathFor(item, event.delta);
@@ -2872,6 +2875,99 @@ function setupUIEventListeners() {
         }
     });
 
+    // paper.js's exportSVG() has two problems with our text items:
+    //  1. A PointText's raw content goes straight into one <text> node, and
+    //     SVG doesn't treat embedded "\n" as a line break, so multi-line
+    //     text collapses onto a single line.
+    //  2. It serializes whatever item.fontFamily/fontWeight happen to be —
+    //     but our italic support works by composing italic into the
+    //     fontWeight string ("italic 600") for canvas's benefit, which is
+    //     not a valid SVG font-weight value, and custom-imported/Google
+    //     Fonts may not round-trip through its default serialization.
+    // Fixed by temporarily expanding every PointText into one clone per
+    // line (correctly offset along the text's own rotation), each tagged
+    // with a throwaway name so paper.js writes it out as an id we can find
+    // afterward, then explicitly setting a correct font-family / numeric
+    // font-weight / font-style on each one directly in the SVG DOM.
+    function withTextExportFixes(svgOptions) {
+        const restorations = [];
+        const fixups = []; // { id, fontFamily, weight, italic, colorHex }
+        let tempIdCounter = 0;
+
+        try {
+            const allText = paper.project.getItems({ class: paper.PointText });
+            allText.forEach(item => {
+                const content = item.content || '';
+                const lines = content.indexOf('\n') !== -1 ? content.split('\n') : [content];
+                const leading = item.leading || (item.fontSize * 1.2);
+                const parent = item.parent;
+                if (!parent) return;
+                const index = parent.children.indexOf(item);
+
+                const decomposed = window.__decomposeFontWeight
+                    ? window.__decomposeFontWeight(item.fontWeight)
+                    : { weight: item.fontWeight, italic: false };
+                const colorHex = item.fillColor ? item.fillColor.toCSS(true) : '#000000';
+
+                let scaleY = 1, rotation = 0;
+                try {
+                    if (item.matrix && typeof item.matrix.decompose === 'function') {
+                        const dec = item.matrix.decompose();
+                        if (dec) {
+                            scaleY = (dec.scaling && typeof dec.scaling.y === 'number') ? dec.scaling.y : 1;
+                            rotation = dec.rotation || 0;
+                        }
+                    }
+                } catch (e) {}
+
+                const group = new paper.Group();
+                lines.forEach((line, i) => {
+                    const lineItem = item.clone({ insert: false });
+                    lineItem.content = line;
+                    lineItem.fontWeight = decomposed.weight; // strip the italic hack — plain numeric weight only
+                    if (i > 0) {
+                        const localOffset = new paper.Point(0, i * leading * scaleY);
+                        lineItem.translate(localOffset.rotate(rotation));
+                    }
+                    const tempId = '__iguhit_txt_' + (tempIdCounter++);
+                    lineItem.name = tempId;
+                    fixups.push({ id: tempId, fontFamily: item.fontFamily, weight: decomposed.weight, italic: decomposed.italic, colorHex });
+                    group.addChild(lineItem);
+                });
+
+                parent.insertChild(index, group);
+                item.remove();
+                restorations.push({ group, original: item, parent, index });
+            });
+
+            const svgEl = paper.project.exportSVG(Object.assign({}, svgOptions, { asString: false }));
+
+            fixups.forEach(f => {
+                const escId = (window.CSS && CSS.escape) ? CSS.escape(f.id) : f.id;
+                const el = svgEl.querySelector ? svgEl.querySelector('#' + escId) : null;
+                if (!el) return;
+                const family = String(f.fontFamily || 'sans-serif').replace(/"/g, "'");
+                const style = 'font-family:' + family + ';' +
+                    'font-weight:' + f.weight + ';' +
+                    'font-style:' + (f.italic ? 'italic' : 'normal') + ';' +
+                    'fill:' + f.colorHex + ';';
+                el.setAttribute('style', style);
+                el.setAttribute('font-family', family);
+                el.setAttribute('font-weight', f.weight);
+                if (f.italic) el.setAttribute('font-style', 'italic');
+                el.removeAttribute('id');
+            });
+
+            return new XMLSerializer().serializeToString(svgEl);
+        } finally {
+            restorations.forEach(r => {
+                r.group.remove();
+                r.parent.insertChild(r.index, r.original);
+            });
+        }
+    }
+    window.__iguhitWithTextExportFixes = withTextExportFixes;
+
     // Save SVG file download trigger (clean crop)
     document.getElementById('btn-export-svg').addEventListener('click', () => {
         deselectAll();
@@ -2881,8 +2977,7 @@ function setupUIEventListeners() {
         artboardLayer.visible = false;
         paper.view.draw();
         
-        const svgStr = paper.project.exportSVG({
-            asString: true,
+        const svgStr = withTextExportFixes({
             bounds: artboardRect.bounds // crop clean
         });
         
@@ -2911,8 +3006,7 @@ function setupUIEventListeners() {
         artboardRect.strokeColor = null;
         paper.view.draw();
         
-        const cleanSVGStr = paper.project.exportSVG({
-            asString: true,
+        const cleanSVGStr = withTextExportFixes({
             bounds: artboardRect.bounds // crop clean
         });
         
@@ -3433,6 +3527,7 @@ function duplicateSelectedItems() {
             const clone = item.clone();
             clone.translate(new paper.Point(20, 20));
             clone.selected = true;
+            if (window.__iguhitHandleTypeOnPathClone) window.__iguhitHandleTypeOnPathClone(item, clone);
         });
         saveState();
         paper.view.draw();
@@ -4461,38 +4556,64 @@ function loadIguhitFile() {
                     syncArtboardInputs();
                 }
 
-                // Restore layers/artwork
+                // Restore layers/artwork — remove EVERY existing layer first
+                // (including the old "System Artboard" layer) so importJSON
+                // rebuilds the whole project fresh from the file, rather
+                // than leaving a stale pre-load layer sitting alongside a
+                // freshly-imported one of the same name.
                 if (data.layers) {
-                    // Clear existing draw layers
-                    paper.project.layers.forEach(l => {
-                        if (l.name !== 'System Artboard') l.remove();
-                    });
+                    paper.project.layers.slice().forEach(l => l.remove());
                     paper.project.importJSON(data.layers);
                 }
 
-                // Rebuild artboards
-                if (data.artboards) {
-                    artboardLayer.locked = false;
-                    artboardLayer.activate();
-                    // Remove old artboard visuals
-                    if (window.artboardRect)   window.artboardRect.remove?.();
-                    if (window.artboardShadow) window.artboardShadow.remove?.();
-                    if (window.gridGroup)      window.gridGroup.remove?.();
-                    window.multiArtboards = [];
+                // Re-link this app's layer/artboard bookkeeping to whatever
+                // importJSON actually restored, instead of creating brand
+                // new artboard objects on top of it — those would never get
+                // inserted into the right layer and would silently vanish
+                // from things like PDF export while still LOOKING fine
+                // (since the real, correctly-restored ones render normally).
+                artboardLayer = paper.project.layers.find(l => l.name === 'System Artboard') || artboardLayer;
+                window.artboardLayer = artboardLayer;
+                drawLayer = paper.project.layers.find(l => l.name !== 'System Artboard') || drawLayer;
+                window.drawLayer = drawLayer;
 
-                    data.artboards.forEach((ab, idx) => {
-                        if (ab.isMain) {
-                            // Rebuild main artboard
-                            state.artboardWidth  = ab.w;
-                            state.artboardHeight = ab.h;
-                            updateArtboardSize(ab.w, ab.h);
-                        } else {
-                            const newAb = createArtboardObject(ab.x, ab.y, ab.w, ab.h);
-                            window.multiArtboards.push(newAb);
-                        }
+                if (data.artboards && artboardLayer) {
+                    artboardLayer.locked = false;
+
+                    let mainRect = artboardLayer.children.find
+                        ? artboardLayer.children.find(c => c.name === 'artboardRect')
+                        : null;
+                    if (!mainRect) {
+                        const named = paper.project.getItems({ match: (i) => i.name === 'artboardRect' });
+                        mainRect = named && named.length ? named[0] : null;
+                    }
+                    if (mainRect) {
+                        window.artboardRect = mainRect;
+                        window.artboardShadow = artboardLayer.children.find
+                            ? artboardLayer.children.find(c => c.name === 'artboardShadow')
+                            : window.artboardShadow;
+                        window.gridGroup = artboardLayer.children.find
+                            ? artboardLayer.children.find(c => c.name === 'gridGroup')
+                            : window.gridGroup;
+                        state.artboardWidth = mainRect.bounds.width;
+                        state.artboardHeight = mainRect.bounds.height;
+                    } else {
+                        // Truly nothing restored (very old/corrupt file) — fall
+                        // back to building a fresh main artboard.
+                        const mainMeta = data.artboards.find(ab => ab.isMain);
+                        updateArtboardSize((mainMeta && mainMeta.w) || state.artboardWidth, (mainMeta && mainMeta.h) || state.artboardHeight);
+                    }
+
+                    window.multiArtboards = [];
+                    const restoredGroups = paper.project.getItems({ match: (i) => i.data && i.data.isArtboard });
+                    restoredGroups.forEach((g) => {
+                        const rect = (g.children && g.children.length > 1) ? g.children[1] : null;
+                        if (!rect || rect === mainRect) return; // the main artboard isn't one of these groups
+                        window.multiArtboards.push({ group: g, rect: rect, shadow: g.children[0], grid: g.children[2] });
                     });
+
                     artboardLayer.locked = true;
-                    if (window.drawLayer) window.drawLayer.activate();
+                    if (drawLayer) drawLayer.activate();
                 }
 
                 paper.view.draw();
@@ -4938,7 +5059,7 @@ function exportAllArtboardsPDF() {
 
     function rasterizeTextItem(item) {
         try {
-            const QS = getTextSupersampleFactor();
+            let QS = getTextSupersampleFactor();
             const fontSize = item.fontSize || 12;
             const leading = item.leading || (fontSize * 1.2);
             const lines = String(item.content || '').split('\n');
@@ -4948,28 +5069,44 @@ function exportAllArtboardsPDF() {
                 ? window.__decomposeFontWeight(item.fontWeight)
                 : { weight: item.fontWeight, italic: false };
             const style = decomposed.italic ? 'italic ' : '';
-            const fontStr = `${style}${decomposed.weight} ${fontSize * QS}px ${item.fontFamily || 'sans-serif'}`;
             const justification = item.justification || 'left';
             const tracking = (item.data && item.data.tracking) || 0;
-
             const measureCtx = __pdfMeasureCtx;
-            measureCtx.font = fontStr;
             const letterSpacingSupported = 'letterSpacing' in measureCtx;
-            const trackPx = tracking ? (tracking / 1000) * fontSize * QS : 0;
-            if (letterSpacingSupported) {
-                try { measureCtx.letterSpacing = trackPx + 'px'; } catch (e) {}
+
+            // Safety cap: keeps any single text item's raster — and by
+            // extension the whole assembled PDF's total size — from
+            // ballooning out of control on long/large text combined with
+            // high supersampling. This is also what keeps a multi-artboard
+            // export well clear of the "Invalid string length" ceiling on
+            // the final assembled file. Bounded to 2 attempts: measure once,
+            // shrink QS proportionally if too big, measure again.
+            const MAX_RASTER_PIXELS = 6000000; // ~2450×2450
+
+            let canvasW, canvasH, ascent, padX, padTop, trackPx, fontStr;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                fontStr = `${style}${decomposed.weight} ${fontSize * QS}px ${item.fontFamily || 'sans-serif'}`;
+                measureCtx.font = fontStr;
+                trackPx = tracking ? (tracking / 1000) * fontSize * QS : 0;
+                if (letterSpacingSupported) {
+                    try { measureCtx.letterSpacing = trackPx + 'px'; } catch (e) {}
+                }
+
+                let maxWidth = 0;
+                lines.forEach(line => { maxWidth = Math.max(maxWidth, measureCtx.measureText(line || ' ').width); });
+                const firstMetrics = measureCtx.measureText(lines[0] || 'Mg');
+                ascent = firstMetrics.actualBoundingBoxAscent || fontSize * QS * 0.8;
+                const descentLast = fontSize * QS * 0.35; // room for descenders on the last line
+
+                padX = fontSize * QS * 0.15;
+                padTop = fontSize * QS * 0.12;
+                canvasW = Math.max(1, Math.ceil(maxWidth + padX * 2));
+                canvasH = Math.max(1, Math.ceil(ascent + padTop + leading * QS * (lines.length - 1) + descentLast));
+
+                const area = canvasW * canvasH;
+                if (area <= MAX_RASTER_PIXELS || attempt === 1) break;
+                QS = Math.max(2, Math.floor(QS * Math.sqrt(MAX_RASTER_PIXELS / area)));
             }
-
-            let maxWidth = 0;
-            lines.forEach(line => { maxWidth = Math.max(maxWidth, measureCtx.measureText(line || ' ').width); });
-            const firstMetrics = measureCtx.measureText(lines[0] || 'Mg');
-            const ascent = firstMetrics.actualBoundingBoxAscent || fontSize * QS * 0.8;
-            const descentLast = fontSize * QS * 0.35; // room for descenders on the last line
-
-            const padX = fontSize * QS * 0.15;
-            const padTop = fontSize * QS * 0.12;
-            const canvasW = Math.max(1, Math.ceil(maxWidth + padX * 2));
-            const canvasH = Math.max(1, Math.ceil(ascent + padTop + leading * QS * (lines.length - 1) + descentLast));
 
             const canvas = document.createElement('canvas');
             canvas.width = canvasW;
@@ -4986,6 +5123,7 @@ function exportAllArtboardsPDF() {
 
             const anchorX = justification === 'center' ? canvasW / 2 : justification === 'right' ? (canvasW - padX) : padX;
             const anchorY = padTop + ascent;
+
 
             lines.forEach((line, i) => {
                 ctx.fillText(line, anchorX, anchorY + i * leading * QS);
@@ -5463,11 +5601,19 @@ function exportAllArtboardsPDF() {
     w(`startxref\n${xrefOffset}\n%%EOF\n`);
 
     // ── Assemble and download ─────────────────────────
-    const fullPDF = pdfParts.join('');
-    const bytes   = new Uint8Array(fullPDF.length);
-    for (let i = 0; i < fullPDF.length; i++) bytes[i] = fullPDF.charCodeAt(i) & 0xff;
+    // IMPORTANT: don't do `pdfParts.join('')` here — for a multi-artboard
+    // export with several rasterized text images, the combined PDF can
+    // exceed the JS engine's ~1GB max string length (RangeError: Invalid
+    // string length). Converting each piece to raw bytes individually and
+    // handing the array straight to Blob avoids ever holding the whole
+    // file as one JS string; Blob is bounded by memory, not that limit.
+    const byteParts = pdfParts.map(part => {
+        const arr = new Uint8Array(part.length);
+        for (let i = 0; i < part.length; i++) arr[i] = part.charCodeAt(i) & 0xff;
+        return arr;
+    });
 
-    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const blob = new Blob(byteParts, { type: 'application/pdf' });
     const url  = URL.createObjectURL(blob);
     const a    = Object.assign(document.createElement('a'), {
         href: url, download: 'iGuhit-export.pdf'
