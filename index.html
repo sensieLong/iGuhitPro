@@ -13,6 +13,12 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.12.17/paper-full.min.js"></script>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        }
+    </script>
     <style>
         /* Ripple animation */
         @keyframes iguhit-ripple { to { transform: scale(4); opacity: 0; } }
@@ -79,6 +85,8 @@
                     <div class="dropdown-menu">
                         <button id="btn-new"><i class="fa-solid fa-file"></i> New Document</button>
                         <button id="btn-open-iguhit"><i class="fa-solid fa-folder-open"></i> Open .iguhit File...</button>
+                        <button id="btn-open-pdf"><i class="fa-solid fa-file-pdf"></i> Open PDF (as Artboards)...</button>
+                        <input type="file" id="pdf-file-input" accept="application/pdf,.pdf" style="display:none;">
                         <button id="btn-import-svg"><i class="fa-solid fa-file-import"></i> Open / Import SVG...</button>
                         <button id="btn-import-ai"><i class="fa-brands fa-adobe"></i> Import Illustrator (.ai / .svg)...</button>
                         <hr>
@@ -773,6 +781,14 @@
                 <button class="action-btn" id="btn-cancel-shape-modal">Cancel</button>
                 <button class="action-btn" id="btn-ok-shape-modal" style="background-color:var(--color-accent);color:#000;border:none;font-weight:600;">OK</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Busy overlay — shown during PDF export/import so the person knows to wait -->
+    <div id="iguhit-busy-overlay" style="display:none;">
+        <div class="iguhit-busy-box">
+            <div class="iguhit-busy-spinner"></div>
+            <div class="iguhit-busy-message" id="iguhit-busy-message">Working…</div>
         </div>
     </div>
 

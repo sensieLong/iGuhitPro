@@ -5650,8 +5650,292 @@ async function addHighResImagePage(pdf, bounds) {
     paper.view.draw();
 }
 
+// ── Busy overlay (PDF export/import can take a moment) ──
+function showBusyOverlay(message) {
+    const overlay = document.getElementById('iguhit-busy-overlay');
+    const msgEl = document.getElementById('iguhit-busy-message');
+    if (msgEl) msgEl.textContent = message || 'Working…';
+    if (overlay) overlay.style.display = 'flex';
+}
+function hideBusyOverlay() {
+    const overlay = document.getElementById('iguhit-busy-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+// Runs `fn` after giving the browser a chance to actually paint the busy
+// overlay first — a plain synchronous call would block the render before
+// the overlay ever becomes visible, since JS is single-threaded.
+function runWithBusyOverlay(message, fn) {
+    showBusyOverlay(message);
+    setTimeout(() => {
+        // One more frame so the overlay reliably paints even on fast machines
+        requestAnimationFrame(() => {
+            try {
+                fn();
+            } catch (e) {
+                console.error(e);
+                alert('Something went wrong: ' + (e && e.message ? e.message : e));
+            } finally {
+                hideBusyOverlay();
+            }
+        });
+    }, 30);
+}
+window.__iguhitRunWithBusyOverlay = runWithBusyOverlay;
+
 // Single authoritative PDF export — iguhit-enhancements.js btn-export-pdf listener is disabled
-document.getElementById('btn-export-pdf')?.addEventListener('click', exportAllArtboardsPDF);
+document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
+    runWithBusyOverlay('Generating PDF, please wait…', exportAllArtboardsPDF);
+});
+
+// ── Open PDF (as Artboards) ────────────────────────────
+// Lightweight, dependency-free page-count/size detector: scans the raw PDF
+// bytes for "/Type /Page" object dictionaries and their "/MediaBox", rather
+// than fully parsing/rendering the file (which would need a much heavier
+// library). This reliably works for PDFs this app itself exports, and for
+// many "plain" PDFs from other tools — but PDFs using compressed
+// cross-reference/object streams (common in some modern generators) may not
+// be readable this way, in which case it falls back to a single default
+// Letter-size artboard rather than failing outright.
+function scanPdfPages(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    const CHUNK = 2 * 1024 * 1024;   // 2MB per chunk
+    const OVERLAP = 2000;            // > the lookahead window below, so a
+                                      // dictionary spanning a chunk boundary
+                                      // still gets matched whole at least once
+    const seenPageMarkers = new Set();
+    const seenPairedMarkers = new Set();
+    const sizesByPos = [];
+    let anyMediaBox = null;
+
+    const pairedRe = /\/Type\s*\/Page(?!s)\b[\s\S]{0,1800}?\/MediaBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]/g;
+    const countRe  = /\/Type\s*\/Page(?!s)\b/g;
+    const anyBoxRe = /\/MediaBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]/;
+
+    for (let offset = 0; offset < bytes.length; offset += (CHUNK - OVERLAP)) {
+        const end = Math.min(bytes.length, offset + CHUNK);
+        const slice = bytes.subarray(offset, end);
+        let str = '';
+        for (let i = 0; i < slice.length; i += 8192) {
+            str += String.fromCharCode.apply(null, slice.subarray(i, Math.min(slice.length, i + 8192)));
+        }
+
+        countRe.lastIndex = 0;
+        let cm;
+        while ((cm = countRe.exec(str))) seenPageMarkers.add(offset + cm.index);
+
+        pairedRe.lastIndex = 0;
+        let pm;
+        while ((pm = pairedRe.exec(str))) {
+            const pos = offset + pm.index;
+            if (!seenPairedMarkers.has(pos)) {
+                seenPairedMarkers.add(pos);
+                const w = Math.abs(parseFloat(pm[3]) - parseFloat(pm[1]));
+                const h = Math.abs(parseFloat(pm[4]) - parseFloat(pm[2]));
+                if (w > 1 && h > 1) sizesByPos.push({ pos, width: w, height: h });
+            }
+        }
+
+        if (!anyMediaBox) {
+            const bm = anyBoxRe.exec(str);
+            if (bm) {
+                const w = Math.abs(parseFloat(bm[3]) - parseFloat(bm[1]));
+                const h = Math.abs(parseFloat(bm[4]) - parseFloat(bm[2]));
+                if (w > 1 && h > 1) anyMediaBox = { width: w, height: h };
+            }
+        }
+
+        if (end >= bytes.length) break;
+    }
+
+    sizesByPos.sort((a, b) => a.pos - b.pos);
+    const pageCount = Math.max(seenPageMarkers.size, sizesByPos.length);
+    const pages = [];
+    for (let i = 0; i < pageCount; i++) {
+        const found = sizesByPos[i];
+        pages.push(found ? { width: found.width, height: found.height } : (anyMediaBox || { width: 612, height: 792 }));
+    }
+    return pages;
+}
+
+function createArtboardsFromPdfPages(pages, fileName) {
+    if (!window.paper || !pages.length) return;
+
+    const PT_TO_PX = (state.artboardResolution || 300) / 72;
+
+    artboardLayer.locked = false;
+
+    // Start fresh from the imported PDF's page structure.
+    if (window.multiArtboards) {
+        window.multiArtboards.forEach(ab => { try { ab.group.remove(); } catch (e) {} });
+    }
+    window.multiArtboards = [];
+
+    const gap = 80; // px gap between stacked artboards
+    let cursorY = 150;
+    const originX = 200;
+
+    pages.forEach((p, idx) => {
+        const w = Math.max(1, Math.round(p.width * PT_TO_PX));
+        const h = Math.max(1, Math.round(p.height * PT_TO_PX));
+
+        if (idx === 0) {
+            state.artboardWidth = w;
+            state.artboardHeight = h;
+            updateArtboardSize(w, h);
+            cursorY = (window.artboardRect ? window.artboardRect.bounds.y : 150) + h + gap;
+        } else {
+            const x = window.artboardRect ? window.artboardRect.bounds.x : originX;
+            const created = createArtboardObject(x, cursorY, w, h);
+            artboardLayer.addChild(created.group);
+            window.multiArtboards.push(created);
+            cursorY += h + gap;
+        }
+    });
+
+    artboardLayer.locked = true;
+    if (window.drawLayer) window.drawLayer.activate();
+
+    paper.view.draw();
+    updateLayersUI();
+    saveState();
+
+    const label = pages.length + ' artboard' + (pages.length > 1 ? 's' : '') + ' from ' + fileName;
+    if (window.showNotification) showNotification('Created ' + label + ' ✓');
+}
+
+// Renders every page of a loaded PDF onto its own correctly-sized artboard
+// using pdf.js — this actually places each page's visual content (text,
+// graphics, images all flattened together), not just an empty same-size
+// artboard. Runs pages one at a time so the busy overlay can show progress
+// and the tab doesn't lock up on larger documents.
+async function importPdfWithContent(arrayBuffer, fileName) {
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdfDoc = await loadingTask.promise;
+    const numPages = pdfDoc.numPages;
+
+    const PT_TO_PX = (state.artboardResolution || 300) / 72;
+    const RENDER_SCALE = Math.min(PT_TO_PX, 4); // cap render resolution to keep memory/time sane
+
+    artboardLayer.locked = false;
+    if (window.multiArtboards) {
+        window.multiArtboards.forEach(ab => { try { ab.group.remove(); } catch (e) {} });
+    }
+    window.multiArtboards = [];
+
+    const gap = 80;
+    let cursorY = 150;
+    const originX = 200;
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        showBusyOverlay('Importing page ' + pageNum + ' of ' + numPages + '…');
+        await new Promise(resolve => setTimeout(resolve, 0)); // let the overlay message repaint
+
+        const page = await pdfDoc.getPage(pageNum);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const wPx = Math.max(1, Math.round(baseViewport.width * PT_TO_PX));
+        const hPx = Math.max(1, Math.round(baseViewport.height * PT_TO_PX));
+
+        const renderViewport = page.getViewport({ scale: RENDER_SCALE });
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = Math.max(1, Math.round(renderViewport.width));
+        pageCanvas.height = Math.max(1, Math.round(renderViewport.height));
+        await page.render({ canvasContext: pageCanvas.getContext('2d'), viewport: renderViewport }).promise;
+
+        let x, y;
+        if (pageNum === 1) {
+            state.artboardWidth = wPx;
+            state.artboardHeight = hPx;
+            updateArtboardSize(wPx, hPx);
+            x = window.artboardRect ? window.artboardRect.bounds.x : originX;
+            y = window.artboardRect ? window.artboardRect.bounds.y : 150;
+        } else {
+            x = window.artboardRect ? window.artboardRect.bounds.x : originX;
+            y = cursorY;
+            const created = createArtboardObject(x, y, wPx, hPx);
+            artboardLayer.addChild(created.group);
+            window.multiArtboards.push(created);
+        }
+        cursorY = y + hPx + gap;
+
+        await new Promise((resolve, reject) => {
+            const raster = new paper.Raster({
+                source: pageCanvas.toDataURL('image/png'),
+                position: new paper.Point(x + wPx / 2, y + hPx / 2)
+            });
+            raster.onLoad = function () {
+                raster.bounds = new paper.Rectangle(x, y, wPx, hPx);
+                if (window.drawLayer) window.drawLayer.addChild(raster);
+                resolve();
+            };
+            raster.onError = reject;
+        });
+    }
+
+    artboardLayer.locked = true;
+    if (window.drawLayer) window.drawLayer.activate();
+
+    paper.view.draw();
+    updateLayersUI();
+    saveState();
+
+    const label = numPages + ' page' + (numPages > 1 ? 's' : '') + ' from ' + fileName;
+    if (window.showNotification) showNotification('Imported ' + label + ' ✓');
+}
+
+document.getElementById('btn-open-pdf')?.addEventListener('click', () => {
+    document.getElementById('pdf-file-input')?.click();
+});
+
+document.getElementById('pdf-file-input')?.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+
+    showBusyOverlay('Reading ' + file.name + '…');
+    const reader = new FileReader();
+
+    // Fallback: page-count/size only (no rendered content), used if pdf.js
+    // itself isn't available or the full content import throws.
+    function fallbackArtboardsOnly(arrayBuffer, reason) {
+        let pages = [];
+        try { pages = scanPdfPages(arrayBuffer); } catch (err) { console.error(err); }
+        if (!pages.length) pages = [{ width: 612, height: 792 }];
+        createArtboardsFromPdfPages(pages, file.name);
+        setTimeout(() => alert(reason + ' Created artboard(s) matching the page size(s) instead, without the page content.'), 50);
+    }
+
+    reader.onload = async (ev) => {
+        const originalBuffer = ev.target.result;
+        try {
+            if (window.pdfjsLib) {
+                showBusyOverlay('Opening ' + file.name + '…');
+                await new Promise(resolve => setTimeout(resolve, 0));
+                try {
+                    // pdf.js's worker may transfer/detach the buffer it's
+                    // given, so hand it a copy and keep the original intact
+                    // in case we need to fall back.
+                    await importPdfWithContent(originalBuffer.slice(0), file.name);
+                } catch (err) {
+                    console.error('PDF content import failed, falling back to page sizes only:', err);
+                    fallbackArtboardsOnly(originalBuffer, 'Could not fully import this PDF\'s content (' + (err && err.message ? err.message : err) + ').');
+                }
+            } else {
+                fallbackArtboardsOnly(originalBuffer, 'The PDF import library failed to load (check your internet connection).');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Could not process that PDF: ' + (err && err.message ? err.message : err));
+        } finally {
+            hideBusyOverlay();
+        }
+    };
+    reader.onerror = () => {
+        hideBusyOverlay();
+        alert('Could not read that file.');
+    };
+    reader.readAsArrayBuffer(file);
+});
+
 
 // Wire File-menu buttons that delegate to iguhit-features.js
 document.getElementById('btn-export-png-artboards')?.addEventListener('click', () => {

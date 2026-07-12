@@ -1672,3 +1672,52 @@ button { overflow: hidden; position: relative; }
     z-index: 500;
     caret-color: var(--color-accent);
 }
+
+/* ==========================================================
+   BUSY OVERLAY — shown during long operations (PDF export/import)
+   ========================================================== */
+#iguhit-busy-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(20, 20, 20, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 5000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iguhit-busy-box {
+    background-color: var(--color-bg-panel);
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    padding: 28px 36px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    min-width: 220px;
+    animation: modal-fadeIn 0.15s ease-out;
+}
+
+.iguhit-busy-spinner {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 3px solid var(--color-border-light);
+    border-top-color: var(--color-accent);
+    animation: iguhit-busy-spin 0.8s linear infinite;
+}
+
+@keyframes iguhit-busy-spin {
+    to { transform: rotate(360deg); }
+}
+
+.iguhit-busy-message {
+    font-family: var(--font-family);
+    font-size: 13px;
+    color: var(--color-text-bright);
+    text-align: center;
+    line-height: 1.4;
+}
