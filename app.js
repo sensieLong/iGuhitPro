@@ -5359,40 +5359,82 @@ function exportAllArtboardsPDF() {
             }
 
         } else if (item instanceof paper.Raster) {
-            // Embed raster image via base64 data URI as inline PDF image XObject
             try {
-                const b  = item.bounds;
-                // Get image as base64 PNG
+                // Native/original pixel size — this is what item.position
+                // and item.matrix are calibrated against, so placement math
+                // must use these even if we embed a downscaled copy below.
+                const srcW = Math.max(1, Math.round(item.width));
+                const srcH = Math.max(1, Math.round(item.height));
 
-                const canvas2 = document.createElement('canvas');
-                canvas2.width  = Math.max(1, Math.round(item.width  || b.width));
-                canvas2.height = Math.max(1, Math.round(item.height || b.height));
-                const ctx2 = canvas2.getContext('2d');
-                // Draw the raster element onto temp canvas
-                ctx2.drawImage(item.canvas || item._canvas || item.getImageData?.()?.data && (() => {
-                    const id = item.getImageData();
-                    ctx2.putImageData(id, 0, 0);
-                })() || (() => {})(), 0, 0, canvas2.width, canvas2.height);
-                // Convert to base64 JPEG for smaller size
-                const dataURL = canvas2.toDataURL('image/jpeg', 0.92);
-                const b64     = dataURL.split(',')[1];
-                if (b64) {
-                    // PDF image coordinates: x,y = bottom-left, width, height in pt (via cm transform)
-                    const ix = tx(b.x, ox);
-                    const iy = ty(b.y + b.height, oy, ph); // PDF y flipped
-                    const iw = r3(b.width);
-                    const ih = r3(b.height);
-                    // Embed inline image (BI...ID...EI operator)
-                    const w = Math.round(canvas2.width);
-                    const h = Math.round(canvas2.height);
-                    ops.push(`q`);
-                    ops.push(`${iw} 0 0 ${ih} ${ix} ${iy} cm`);
-                    ops.push(`BI\n/W ${w} /H ${h} /CS /RGB /BPC 8 /F /DCTDecode\nID`);
-                    // Note: inline image binary data can't be injected in string-based approach
-                    // Use Do operator with external XObject instead — store for resources
-                    ops.push(`EI\nQ`);
+                // Cap the embedded resolution so a large photo doesn't
+                // balloon the exported file — downscaling the embedded
+                // pixels doesn't change where/how big it's placed, only how
+                // sharp it looks at that size.
+                const MAX_IMAGE_PIXELS = 16000000; // ~4000×4000
+                let rw = srcW, rh = srcH, sourceCanvas;
+                const nativeCtx = item.getContext(false);
+                if (srcW * srcH > MAX_IMAGE_PIXELS) {
+                    const shrink = Math.sqrt(MAX_IMAGE_PIXELS / (srcW * srcH));
+                    rw = Math.max(1, Math.round(srcW * shrink));
+                    rh = Math.max(1, Math.round(srcH * shrink));
+                    const tmp = document.createElement('canvas');
+                    tmp.width = rw; tmp.height = rh;
+                    const tmpCtx = tmp.getContext('2d');
+                    tmpCtx.drawImage(nativeCtx.canvas, 0, 0, srcW, srcH, 0, 0, rw, rh);
+                    sourceCanvas = tmp;
+                } else {
+                    sourceCanvas = nativeCtx.canvas;
                 }
-            } catch(e) { console.warn('Raster PDF export error:', e); }
+
+                const imgCtx = (sourceCanvas === nativeCtx.canvas) ? nativeCtx : sourceCanvas.getContext('2d');
+                const imgData = imgCtx.getImageData(0, 0, rw, rh);
+                const src = imgData.data;
+                const pixelCount = rw * rh;
+                const rgb = new Uint8Array(pixelCount * 3);
+                const alpha = new Uint8Array(pixelCount);
+                for (let p = 0, s = 0; p < pixelCount; p++, s += 4) {
+                    rgb[p * 3] = src[s]; rgb[p * 3 + 1] = src[s + 1]; rgb[p * 3 + 2] = src[s + 2];
+                    alpha[p] = src[s + 3];
+                }
+
+                // Same rotation/scale decomposition and placement math as
+                // rasterized text — see that branch above for the full
+                // derivation/reasoning behind the sign conventions.
+                let scaleX = 1, scaleY = 1, rotation = 0;
+                try {
+                    if (item.matrix && typeof item.matrix.decompose === 'function') {
+                        const dec = item.matrix.decompose();
+                        if (dec) {
+                            scaleX = (dec.scaling && typeof dec.scaling.x === 'number') ? dec.scaling.x : 1;
+                            scaleY = (dec.scaling && typeof dec.scaling.y === 'number') ? dec.scaling.y : 1;
+                            rotation = dec.rotation || 0;
+                        }
+                    }
+                } catch (e) {}
+
+                const rad = ((-rotation) * Math.PI) / 180;
+                const cosR = Math.cos(rad), sinR = Math.sin(rad);
+                const a = scaleX * cosR, b = scaleX * sinR, c = -scaleY * sinR, d = scaleY * cosR;
+
+                const baseE = tx(item.position.x, ox);
+                const baseF = ty(item.position.y, oy, ph);
+
+                // Raster geometry is centered at its own local origin
+                // (position), unlike text which anchors at a baseline —
+                // so its bottom-left corner is simply -half width/height.
+                const u_bl = -srcW / 2, v_bl = -srcH / 2;
+                const A = a * srcW, B = b * srcW, C = c * srcH, D = d * srcH;
+                const E = baseE + a * u_bl + c * v_bl;
+                const F = baseF + b * u_bl + d * v_bl;
+
+                const name = 'IMG' + (Object.keys(images).length + 1);
+                images[name] = { rw, rh, rgbBytes: bytesToBinaryString(rgb), alphaBytes: bytesToBinaryString(alpha) };
+
+                ops.push('q');
+                ops.push(`${r3(A)} ${r3(B)} ${r3(C)} ${r3(D)} ${r3(E)} ${r3(F)} cm`);
+                ops.push(`/${name} Do`);
+                ops.push('Q');
+            } catch (e) { console.warn('Raster PDF export error:', e); }
 
         } else if (item instanceof paper.Group) {
             ops.push('q');
