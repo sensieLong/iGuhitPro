@@ -4699,6 +4699,25 @@ function createArtboardObject(x, y, width, height) {
     };
 }
 
+// Shared 2-column grid layout used for placing secondary artboards —
+// column 1 = right of main, then rows fill left-then-right below it. Used
+// by both the "Add Artboard" button and PDF import, so artboards from
+// either source always line up consistently and continue from wherever
+// the other left off.
+function computeNextArtboardGridPosition(extraCount, cellW, cellH) {
+    const SPACING_X = 80, SPACING_Y = 100;
+    const ORIGIN_X = 200, ORIGIN_Y = 150;
+    let col, row;
+    if (extraCount === 0) {
+        col = 1; row = 0; // first secondary goes right of main
+    } else {
+        const pairIndex = extraCount;
+        row = Math.ceil(pairIndex / 2);
+        col = (pairIndex % 2 === 1) ? 0 : 1;
+    }
+    return { x: ORIGIN_X + col * (cellW + SPACING_X), y: ORIGIN_Y + row * (cellH + SPACING_Y) };
+}
+
 function addNewArtboardProper() {
     artboardLayer.locked = false;
     artboardLayer.activate();
@@ -4713,38 +4732,11 @@ function addNewArtboardProper() {
     // Column 0 = main artboard (already at x=200, y=150)
     // Column 1 = to the right of main artboard
     // Row increases every 2 artboards (every 2 secondary entries)
-    //
-    // Layout (index = secondary artboard count before this one):
-    //   index 0 → col 1, row 0  (right of main)
-    //   index 1 → col 0, row 1  (below main)
-    //   index 2 → col 1, row 1  (below index 0)
-    //   index 3 → col 0, row 2  ...etc
-    //
-    // Main artboard origin: (200, 150)
-    const SPACING_X = 80;   // horizontal gap between artboards
-    const SPACING_Y = 100;  // vertical gap between artboard rows
     const AW = state.artboardWidth;
     const AH = state.artboardHeight;
-    const ORIGIN_X = 200;
-    const ORIGIN_Y = 150;
 
     const extraCount = window.multiArtboards.filter(a => !a.isMain).length;
-
-    // Map secondary index to (col, row) in 2-column grid
-    // Secondary 0 → (1,0), 1 → (0,1), 2 → (1,1), 3 → (0,2), 4 → (1,2)...
-    let col, row;
-    if (extraCount === 0) {
-        col = 1; row = 0; // first new artboard goes right of main
-    } else {
-        // After the first secondary, fill pairs: (0,row) then (1,row)
-        // secondary 1 → col=0,row=1; secondary 2 → col=1,row=1; etc.
-        const pairIndex = extraCount; // 1-based: 1=(0,1), 2=(1,1), 3=(0,2)...
-        row = Math.ceil(pairIndex / 2);
-        col = (pairIndex % 2 === 1) ? 0 : 1;
-    }
-
-    const x = ORIGIN_X + col * (AW + SPACING_X);
-    const y = ORIGIN_Y + row * (AH + SPACING_Y);
+    const { x, y } = computeNextArtboardGridPosition(extraCount, AW, AH);
 
     const artboard = createArtboardObject(x, y, AW, AH);
     artboard.bounds = artboard.rect.bounds;
@@ -5812,9 +5804,7 @@ function createArtboardsFromPdfPages(pages, fileName) {
     }
     window.multiArtboards = [];
 
-    const gap = 80; // px gap between stacked artboards
-    let cursorY = 150;
-    const originX = 200;
+    let mainW = 0, mainH = 0;
 
     pages.forEach((p, idx) => {
         const w = Math.max(1, Math.round(p.width * PT_TO_PX));
@@ -5824,13 +5814,14 @@ function createArtboardsFromPdfPages(pages, fileName) {
             state.artboardWidth = w;
             state.artboardHeight = h;
             updateArtboardSize(w, h);
-            cursorY = (window.artboardRect ? window.artboardRect.bounds.y : 150) + h + gap;
+            mainW = w; mainH = h;
         } else {
-            const x = window.artboardRect ? window.artboardRect.bounds.x : originX;
-            const created = createArtboardObject(x, cursorY, w, h);
+            const extraCount = window.multiArtboards.filter(a => !a.isMain).length;
+            const pos = computeNextArtboardGridPosition(extraCount, mainW || w, mainH || h);
+            const created = createArtboardObject(pos.x, pos.y, w, h);
+            created.bounds = created.rect.bounds;
             artboardLayer.addChild(created.group);
             window.multiArtboards.push(created);
-            cursorY += h + gap;
         }
     });
 
@@ -5864,9 +5855,7 @@ async function importPdfWithContent(arrayBuffer, fileName) {
     }
     window.multiArtboards = [];
 
-    const gap = 80;
-    let cursorY = 150;
-    const originX = 200;
+    let mainWPx = 0, mainHPx = 0; // used as the grid "cell" size for spacing, like addNewArtboardProper
 
     for (let pageNum = 1; pageNum <= numPages; pageNum++) {
         showBusyOverlay('Importing page ' + pageNum + ' of ' + numPages + '…');
@@ -5888,16 +5877,22 @@ async function importPdfWithContent(arrayBuffer, fileName) {
             state.artboardWidth = wPx;
             state.artboardHeight = hPx;
             updateArtboardSize(wPx, hPx);
-            x = window.artboardRect ? window.artboardRect.bounds.x : originX;
+            x = window.artboardRect ? window.artboardRect.bounds.x : 200;
             y = window.artboardRect ? window.artboardRect.bounds.y : 150;
+            mainWPx = wPx; mainHPx = hPx;
         } else {
-            x = window.artboardRect ? window.artboardRect.bounds.x : originX;
-            y = cursorY;
+            // Same 2-column grid the "Add Artboard" button uses, so pages
+            // line up left/right instead of stacking straight down, and so
+            // clicking "Add Artboard" afterward continues in the correct
+            // next slot right after the last imported page.
+            const extraCount = window.multiArtboards.filter(a => !a.isMain).length;
+            const pos = computeNextArtboardGridPosition(extraCount, mainWPx || wPx, mainHPx || hPx);
+            x = pos.x; y = pos.y;
             const created = createArtboardObject(x, y, wPx, hPx);
+            created.bounds = created.rect.bounds;
             artboardLayer.addChild(created.group);
             window.multiArtboards.push(created);
         }
-        cursorY = y + hPx + gap;
 
         await new Promise((resolve, reject) => {
             const raster = new paper.Raster({
