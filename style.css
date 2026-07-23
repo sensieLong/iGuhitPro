@@ -489,6 +489,12 @@ body {
     color: var(--color-accent);
 }
 
+.shape-builder-icon {
+    width: 13px;
+    height: 13px;
+    color: inherit;
+}
+
 /* Overlapping Color selector widget */
 .toolbar-color-selector {
     margin-top: auto;

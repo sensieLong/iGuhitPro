@@ -5804,7 +5804,16 @@ function createArtboardsFromPdfPages(pages, fileName) {
     }
     window.multiArtboards = [];
 
-    let mainW = 0, mainH = 0;
+    // Uniform grid cell size = the largest page across the whole document,
+    // so artboards never overlap even when page sizes vary — each artboard
+    // still gets its own true size, only the grid SPACING is uniform.
+    let maxW = 1, maxH = 1;
+    pages.forEach(p => {
+        const w = Math.max(1, Math.round(p.width * PT_TO_PX));
+        const h = Math.max(1, Math.round(p.height * PT_TO_PX));
+        if (w > maxW) maxW = w;
+        if (h > maxH) maxH = h;
+    });
 
     pages.forEach((p, idx) => {
         const w = Math.max(1, Math.round(p.width * PT_TO_PX));
@@ -5814,10 +5823,9 @@ function createArtboardsFromPdfPages(pages, fileName) {
             state.artboardWidth = w;
             state.artboardHeight = h;
             updateArtboardSize(w, h);
-            mainW = w; mainH = h;
         } else {
             const extraCount = window.multiArtboards.filter(a => !a.isMain).length;
-            const pos = computeNextArtboardGridPosition(extraCount, mainW || w, mainH || h);
+            const pos = computeNextArtboardGridPosition(extraCount, maxW, maxH);
             const created = createArtboardObject(pos.x, pos.y, w, h);
             created.bounds = created.rect.bounds;
             artboardLayer.addChild(created.group);
@@ -5849,23 +5857,36 @@ async function importPdfWithContent(arrayBuffer, fileName) {
     const PT_TO_PX = (state.artboardResolution || 300) / 72;
     const RENDER_SCALE = Math.min(PT_TO_PX, 4); // cap render resolution to keep memory/time sane
 
+    // Pre-pass: read every page's size before laying anything out. The grid
+    // cell size is based on the LARGEST page across the whole document, so
+    // artboards never overlap even when pages vary in size — each artboard
+    // still gets its own true size, only the grid SPACING is uniform.
+    showBusyOverlay('Reading page sizes…');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const pageSizes = [];
+    let maxWPx = 1, maxHPx = 1;
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const vp = page.getViewport({ scale: 1 });
+        const wPx = Math.max(1, Math.round(vp.width * PT_TO_PX));
+        const hPx = Math.max(1, Math.round(vp.height * PT_TO_PX));
+        pageSizes.push({ wPx, hPx });
+        if (wPx > maxWPx) maxWPx = wPx;
+        if (hPx > maxHPx) maxHPx = hPx;
+    }
+
     artboardLayer.locked = false;
     if (window.multiArtboards) {
         window.multiArtboards.forEach(ab => { try { ab.group.remove(); } catch (e) {} });
     }
     window.multiArtboards = [];
 
-    let mainWPx = 0, mainHPx = 0; // used as the grid "cell" size for spacing, like addNewArtboardProper
-
     for (let pageNum = 1; pageNum <= numPages; pageNum++) {
         showBusyOverlay('Importing page ' + pageNum + ' of ' + numPages + '…');
         await new Promise(resolve => setTimeout(resolve, 0)); // let the overlay message repaint
 
+        const { wPx, hPx } = pageSizes[pageNum - 1];
         const page = await pdfDoc.getPage(pageNum);
-        const baseViewport = page.getViewport({ scale: 1 });
-        const wPx = Math.max(1, Math.round(baseViewport.width * PT_TO_PX));
-        const hPx = Math.max(1, Math.round(baseViewport.height * PT_TO_PX));
-
         const renderViewport = page.getViewport({ scale: RENDER_SCALE });
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = Math.max(1, Math.round(renderViewport.width));
@@ -5879,14 +5900,15 @@ async function importPdfWithContent(arrayBuffer, fileName) {
             updateArtboardSize(wPx, hPx);
             x = window.artboardRect ? window.artboardRect.bounds.x : 200;
             y = window.artboardRect ? window.artboardRect.bounds.y : 150;
-            mainWPx = wPx; mainHPx = hPx;
         } else {
-            // Same 2-column grid the "Add Artboard" button uses, so pages
-            // line up left/right instead of stacking straight down, and so
-            // clicking "Add Artboard" afterward continues in the correct
-            // next slot right after the last imported page.
+            // Same 2-column grid the "Add Artboard" button uses (uniform
+            // cell size from the pre-pass above), so pages line up left/
+            // right without overlapping, and clicking "Add Artboard"
+            // afterward continues in the correct next slot. The person can
+            // always drag individual artboards to reposition them further
+            // with the Artboard tool if they want a different arrangement.
             const extraCount = window.multiArtboards.filter(a => !a.isMain).length;
-            const pos = computeNextArtboardGridPosition(extraCount, mainWPx || wPx, mainHPx || hPx);
+            const pos = computeNextArtboardGridPosition(extraCount, maxWPx, maxHPx);
             x = pos.x; y = pos.y;
             const created = createArtboardObject(x, y, wPx, hPx);
             created.bounds = created.rect.bounds;

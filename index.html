@@ -7,7 +7,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>iGuhit Vector - Professional Vector Graphics Editor</title>
-    <link rel="icon" type="image/x-icon" href="./iGuhitx logo.ico">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;0,700;1,400&family=Montserrat:wght@400;500;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Oswald:wght@400;600;700&family=Pacifico&family=Bebas+Neue&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -343,7 +342,18 @@
                 <button class="tool-btn" id="tool-hand" data-tool="hand" title="Hand Tool / Pan (H)"><i class="fa-regular fa-hand"></i></button>
                 <button class="tool-btn" id="tool-zoom" data-tool="zoom" title="Zoom Tool (Z)"><i class="fa-solid fa-magnifying-glass"></i></button>
                 <button class="tool-btn" id="tool-rotate" data-tool="rotate" title="Rotate Selected (R)"><i class="fa-solid fa-arrows-rotate"></i></button>
-                <button class="tool-btn" id="tool-shape-builder" data-tool="shape-builder" title="Shape Builder Tool (Shift+M)"><i class="fa-solid fa-diagram-project"></i></button>
+                <button class="tool-btn" id="tool-shape-builder" data-tool="shape-builder" title="Shape Builder Tool (Shift+M)">
+                    <svg class="shape-builder-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <defs>
+                            <mask id="shapeBuilderTrimMask">
+                                <rect x="0" y="0" width="24" height="24" fill="white"/>
+                                <circle cx="10.4" cy="12" r="4.3" fill="black"/>
+                            </mask>
+                        </defs>
+                        <circle cx="9" cy="12" r="6" fill="currentColor"/>
+                        <circle cx="15" cy="12" r="6" fill="currentColor" mask="url(#shapeBuilderTrimMask)"/>
+                    </svg>
+                </button>
                 <button class="tool-btn" id="tool-tapered" data-tool="tapered" title="Tapered Brush Tool (Shift+B)"><i class="fa-solid fa-paintbrush"></i></button>
                 <button class="tool-btn" id="tool-gradient" data-tool="gradient" title="Gradient Tool (G) — Select objects then drag to set gradient direction"><i class="fa-solid fa-fill-drip"></i></button>
             </div>
