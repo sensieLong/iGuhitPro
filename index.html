@@ -19,6 +19,7 @@
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
         }
     </script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         /* Ripple animation */
         @keyframes iguhit-ripple { to { transform: scale(4); opacity: 0; } }
@@ -91,10 +92,12 @@
                         <button id="btn-import-ai"><i class="fa-brands fa-adobe"></i> Import Illustrator (.ai / .svg)...</button>
                         <hr>
                         <button id="btn-save-iguhit"><i class="fa-solid fa-floppy-disk"></i> Save as .iguhit</button>
+                        <button id="btn-save-iguhit-drive"><i class="fa-brands fa-google-drive"></i> Save .iguhit to Google Drive...</button>
                         <button id="btn-export-svg"><i class="fa-solid fa-file-export"></i> Save / Export SVG</button>
                         <button id="btn-export-ai"><i class="fa-brands fa-adobe"></i> Export as Illustrator (.svg)</button>
                         <button id="btn-export-png"><i class="fa-solid fa-image"></i> Export as PNG</button>
                         <button id="btn-export-pdf"><i class="fa-solid fa-file-pdf"></i> Export PDF (Artboard)</button>
+                        <button id="btn-export-pdf-drive"><i class="fa-brands fa-google-drive"></i> Export PDF to Google Drive...</button>
                         <button id="btn-export-png-artboards"><i class="fa-solid fa-images"></i> Export PNG per Artboard</button>
                         <hr>
                         <button id="btn-embed-image-menu"><i class="fa-solid fa-image"></i> Place / Embed Image...</button>

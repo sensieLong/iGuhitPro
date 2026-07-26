@@ -668,9 +668,25 @@
         const reader = new FileReader();
         reader.onload = evt => {
             try {
-                paper.project.importSVG(evt.target.result, {
+                const svgText = evt.target.result;
+                const dims = window.__iguhitParseSvgDimensions ? window.__iguhitParseSvgDimensions(svgText) : null;
+                if (dims && window.updateArtboardSize) {
+                    if (window.state) window.state.artboardBgColor = window.state.artboardBgColor || '#ffffff';
+                    window.updateArtboardSize(dims.width, dims.height);
+                    if (window.syncArtboardInputs) window.syncArtboardInputs();
+                }
+                paper.project.importSVG(svgText, {
                     expandShapes: false,
-                    onLoad: item => { if (item) { item.position = paper.view.center; if (window.saveState) saveState(); paper.view.draw(); } },
+                    onLoad: item => {
+                        if (item) {
+                            item.position = dims
+                                ? new paper.Point(200 + dims.width / 2, 150 + dims.height / 2)
+                                : paper.view.center;
+                            if (window.fitArtboardToScreen) window.fitArtboardToScreen();
+                            if (window.saveState) saveState();
+                            paper.view.draw();
+                        }
+                    },
                     onError: () => alert('Could not import — ensure it is SVG or AI (SVG-compatible).')
                 });
             } catch(err) { alert('Import error: ' + err.message); }

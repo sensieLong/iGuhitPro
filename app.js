@@ -1513,6 +1513,18 @@ function handleTypeMouseDown(event) {
 }
 
 // --- LINE TOOL (\) ---
+// Snaps `point` so the line from `origin` to it lands on the nearest 45°
+// increment (horizontal, vertical, or diagonal) — same distance from origin,
+// just rounded to the nearest of those 8 directions.
+function constrainPointToAxis(origin, point) {
+    const delta = point.subtract(origin);
+    const distance = delta.length;
+    if (distance === 0) return point;
+    const angle = Math.round(delta.angle / 45) * 45;
+    const rad = angle * Math.PI / 180;
+    return origin.add(new paper.Point(Math.cos(rad), Math.sin(rad)).multiply(distance));
+}
+
 function handleLineMouseDown(event) {
     deselectAll();
     activePath = new paper.Path.Line({
@@ -1525,10 +1537,14 @@ function handleLineMouseDown(event) {
 
 function handleLineMouseDrag(event) {
     if (activePath) {
+        let endPoint = event.point;
+        if (event.modifiers && event.modifiers.shift) {
+            endPoint = constrainPointToAxis(event.downPoint, event.point);
+        }
         activePath.remove();
         activePath = new paper.Path.Line({
             from: event.downPoint,
-            to: event.point
+            to: endPoint
         });
         setupShapeStyles(activePath);
         activePath.selected = true;
@@ -2756,6 +2772,38 @@ function setupUIEventListeners() {
         }
     });
 
+    function parseSvgDimensions(svgText) {
+        let svgWidth = 800, svgHeight = 600;
+        try {
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+            const svgElement = svgDoc.documentElement;
+            const viewBox = svgElement.getAttribute('viewBox');
+
+            if (viewBox) {
+                const parts = viewBox.split(/[ ,]+/);
+                if (parts.length === 4) {
+                    svgWidth = parseFloat(parts[2]);
+                    svgHeight = parseFloat(parts[3]);
+                }
+            }
+            const widthAttr = svgElement.getAttribute('width');
+            const heightAttr = svgElement.getAttribute('height');
+            if (widthAttr && !widthAttr.includes('%')) {
+                svgWidth = parseFloat(widthAttr);
+            }
+            if (heightAttr && !heightAttr.includes('%')) {
+                svgHeight = parseFloat(heightAttr);
+            }
+        } catch (err) {
+            console.error("Error parsing SVG dimensions:", err);
+        }
+        if (!isFinite(svgWidth) || svgWidth <= 0) svgWidth = 800;
+        if (!isFinite(svgHeight) || svgHeight <= 0) svgHeight = 600;
+        return { width: svgWidth, height: svgHeight };
+    }
+    window.__iguhitParseSvgDimensions = parseSvgDimensions;
+
     document.getElementById('btn-import-svg').addEventListener('click', () => {
         document.getElementById('svg-file-input').click();
     });
@@ -2766,34 +2814,10 @@ function setupUIEventListeners() {
             const reader = new FileReader();
             reader.onload = (event) => {
                 const text = event.target.result;
-                
+
                 // Parse SVG to extract dimensions
-                let svgWidth = 800;
-                let svgHeight = 600;
-                try {
-                    const parser = new DOMParser();
-                    const svgDoc = parser.parseFromString(text, 'image/svg+xml');
-                    const svgElement = svgDoc.documentElement;
-                    const viewBox = svgElement.getAttribute('viewBox');
-                    
-                    if (viewBox) {
-                        const parts = viewBox.split(/[ ,]+/);
-                        if (parts.length === 4) {
-                            svgWidth = parseFloat(parts[2]);
-                            svgHeight = parseFloat(parts[3]);
-                        }
-                    }
-                    const widthAttr = svgElement.getAttribute('width');
-                    const heightAttr = svgElement.getAttribute('height');
-                    if (widthAttr && !widthAttr.includes('%')) {
-                        svgWidth = parseFloat(widthAttr);
-                    }
-                    if (heightAttr && !heightAttr.includes('%')) {
-                        svgHeight = parseFloat(heightAttr);
-                    }
-                } catch (err) {
-                    console.error("Error parsing SVG dimensions:", err);
-                }
+                const dims = parseSvgDimensions(text);
+                const svgWidth = dims.width, svgHeight = dims.height;
                 
                 // Reset artboard background color to default white before applying SVG's
                 state.artboardBgColor = '#ffffff';
@@ -4344,10 +4368,22 @@ document.addEventListener('drop', function(e) {
         const content = evt.target.result;
 
         if (file.name.endsWith('.svg')) {
-            paper.project.importSVG(content, function(item) {
-                item.position = paper.view.center;
-                saveState();
-                paper.view.draw();
+            const dims = window.__iguhitParseSvgDimensions ? window.__iguhitParseSvgDimensions(content) : null;
+            if (dims && window.updateArtboardSize) {
+                state.artboardBgColor = state.artboardBgColor || '#ffffff';
+                updateArtboardSize(dims.width, dims.height);
+                if (window.syncArtboardInputs) syncArtboardInputs();
+            }
+            paper.project.importSVG(content, {
+                expandShapes: false,
+                onLoad: (item) => {
+                    item.position = dims
+                        ? new paper.Point(200 + dims.width / 2, 150 + dims.height / 2)
+                        : paper.view.center;
+                    if (window.fitArtboardToScreen) fitArtboardToScreen();
+                    saveState();
+                    paper.view.draw();
+                }
             });
         } else if (
             file.name.endsWith('.png') ||
@@ -4484,7 +4520,7 @@ document.getElementById('btn-create-cropmarks')?.addEventListener('click', showC
 // =====================================================
 // SAVE / LOAD .iguhit FORMAT
 // =====================================================
-function saveIguhitFile() {
+function buildIguhitFileBlob() {
     // Collect all artboards
     const boardsData = [];
     if (window.artboardRect && window.artboardRect.isInserted()) {
@@ -4528,7 +4564,11 @@ function saveIguhitFile() {
     };
 
     const json = JSON.stringify(saveData, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
+    return new Blob([json], { type: 'application/json' });
+}
+
+function saveIguhitFile() {
+    const blob = buildIguhitFileBlob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'artwork.iguhit';
@@ -4763,7 +4803,7 @@ if (artboardBtn) {
 // as fully editable vector objects.
 // =====================================================
 
-function exportAllArtboardsPDF() {
+function buildPdfBlob() {
     // ── Collect artboards ──────────────────────────────
     const boards = [];
 
@@ -5634,7 +5674,7 @@ function exportAllArtboardsPDF() {
     w(`trailer\n<< /Size ${totalObjs}\n   /Root ${catNum} 0 R\n>>\n`);
     w(`startxref\n${xrefOffset}\n%%EOF\n`);
 
-    // ── Assemble and download ─────────────────────────
+    // ── Assemble ───────────────────────────────────────
     // IMPORTANT: don't do `pdfParts.join('')` here — for a multi-artboard
     // export with several rasterized text images, the combined PDF can
     // exceed the JS engine's ~1GB max string length (RangeError: Invalid
@@ -5647,9 +5687,18 @@ function exportAllArtboardsPDF() {
         return arr;
     });
 
-    const blob = new Blob(byteParts, { type: 'application/pdf' });
-    const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'), {
+    return new Blob(byteParts, { type: 'application/pdf' });
+}
+window.__iguhitBuildPdfBlob = buildPdfBlob;
+
+// Builds the PDF and triggers a local download — the original entry point,
+// kept as a thin wrapper so existing callers (the Export PDF button) don't
+// need to change. Google Drive export reuses buildPdfBlob() directly instead.
+function exportAllArtboardsPDF() {
+    const blob = buildPdfBlob();
+    if (!blob) return; // buildPdfBlob() already alerted the person why
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), {
         href: url, download: 'iGuhit-export.pdf'
     });
     document.body.appendChild(a);
@@ -5715,6 +5764,119 @@ function runWithBusyOverlay(message, fn) {
     }, 30);
 }
 window.__iguhitRunWithBusyOverlay = runWithBusyOverlay;
+
+// Async counterpart to runWithBusyOverlay — for flows involving Promises
+// (Google Drive's sign-in popup and upload requests), where the plain
+// synchronous version's try/finally would hide the overlay before the
+// actual work finishes.
+function runWithBusyOverlayAsync(message, asyncFn) {
+    showBusyOverlay(message);
+    setTimeout(async () => {
+        try {
+            await asyncFn();
+        } catch (e) {
+            console.error(e);
+            alert('Something went wrong: ' + (e && e.message ? e.message : e));
+        } finally {
+            hideBusyOverlay();
+        }
+    }, 30);
+}
+window.__iguhitRunWithBusyOverlayAsync = runWithBusyOverlayAsync;
+
+// ── Google Drive integration ───────────────────────────
+// Uses Google Identity Services (GIS) for OAuth and calls the Drive REST
+// API directly with fetch — no need for the heavier gapi client library
+// just to upload a file.
+//
+// IMPORTANT — setup required before this works:
+// You need your own OAuth 2.0 Client ID from Google Cloud Console
+// (console.cloud.google.com → APIs & Services → Credentials → Create
+// Credentials → OAuth client ID → Web application), with your app's URL
+// added under "Authorized JavaScript origins". Paste that Client ID below.
+// Until you do, the Drive buttons will show a clear message explaining
+// this rather than failing silently.
+const GOOGLE_DRIVE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+let googleDriveAccessToken = null;
+let googleDriveTokenClient = null;
+
+function isGoogleDriveConfigured() {
+    return GOOGLE_DRIVE_CLIENT_ID && GOOGLE_DRIVE_CLIENT_ID.indexOf('YOUR_GOOGLE_CLIENT_ID') !== 0;
+}
+
+function getGoogleDriveAccessToken() {
+    return new Promise((resolve, reject) => {
+        if (!isGoogleDriveConfigured()) {
+            reject(new Error('Google Drive isn\'t set up yet for this app — it needs a Google OAuth Client ID added in app.js (GOOGLE_DRIVE_CLIENT_ID) before this will work.'));
+            return;
+        }
+        if (!window.google || !google.accounts || !google.accounts.oauth2) {
+            reject(new Error('Google\'s sign-in library failed to load — check your internet connection and try again.'));
+            return;
+        }
+        if (!googleDriveTokenClient) {
+            googleDriveTokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_DRIVE_CLIENT_ID,
+                scope: GOOGLE_DRIVE_SCOPE,
+                callback: () => {} // set per-request just below
+            });
+        }
+        googleDriveTokenClient.callback = (resp) => {
+            if (resp && resp.error) { reject(new Error('Google sign-in failed: ' + resp.error)); return; }
+            googleDriveAccessToken = resp.access_token;
+            resolve(googleDriveAccessToken);
+        };
+        // Skip the consent screen on repeat use within the same session.
+        googleDriveTokenClient.requestAccessToken({ prompt: googleDriveAccessToken ? '' : 'consent' });
+    });
+}
+
+async function uploadBlobToGoogleDrive(fileName, mimeType, blob) {
+    const token = await getGoogleDriveAccessToken();
+    const metadata = { name: fileName, mimeType: mimeType };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', blob);
+
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: form
+    });
+    if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.json()).error?.message || ''; } catch (e) {}
+        // An expired/invalid token is the most common reason this fails
+        // after the app's been open a while — clear it so the next attempt
+        // re-prompts instead of repeating the same failure.
+        if (res.status === 401) googleDriveAccessToken = null;
+        throw new Error('Google Drive upload failed (' + res.status + ')' + (detail ? ': ' + detail : '.'));
+    }
+    return res.json();
+}
+
+document.getElementById('btn-save-iguhit-drive')?.addEventListener('click', () => {
+    runWithBusyOverlayAsync('Connecting to Google Drive…', async () => {
+        const blob = buildIguhitFileBlob();
+        showBusyOverlay('Uploading to Google Drive…');
+        const result = await uploadBlobToGoogleDrive('artwork.iguhit', 'application/json', blob);
+        if (window.showNotification) showNotification('Saved "' + result.name + '" to Google Drive ✓');
+        else alert('Saved to Google Drive: ' + result.name);
+    });
+});
+
+document.getElementById('btn-export-pdf-drive')?.addEventListener('click', () => {
+    runWithBusyOverlayAsync('Generating PDF…', async () => {
+        const blob = buildPdfBlob();
+        if (!blob) return; // buildPdfBlob() already alerted why (e.g. no artboard)
+        showBusyOverlay('Uploading to Google Drive…');
+        const result = await uploadBlobToGoogleDrive('iGuhit-export.pdf', 'application/pdf', blob);
+        if (window.showNotification) showNotification('Saved "' + result.name + '" to Google Drive ✓');
+        else alert('Saved to Google Drive: ' + result.name);
+    });
+});
 
 // Single authoritative PDF export — iguhit-enhancements.js btn-export-pdf listener is disabled
 document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
