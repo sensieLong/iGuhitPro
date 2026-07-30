@@ -2772,37 +2772,89 @@ function setupUIEventListeners() {
         }
     });
 
+    // Converts an SVG length string ("210mm", "8.5in", "595.28pt", "600",
+    // "600px"...) to CSS pixels (the standard 96px/inch reference SVG and
+    // CSS both use). Without this, a width like "210mm" — completely
+    // typical from Illustrator/Inkscape/Figma exports — was being read as
+    // a bare number and misinterpreted as 210 raw pixels instead of ~794.
+    function parseSvgLength(str) {
+        if (!str) return null;
+        const m = /^\s*([\-\d.eE+]+)\s*(px|pt|pc|in|mm|cm|em|ex|%)?\s*$/.exec(str);
+        if (!m) return null;
+        const num = parseFloat(m[1]);
+        if (!isFinite(num)) return null;
+        const unit = (m[2] || 'px').toLowerCase();
+        switch (unit) {
+            case 'px': return num;
+            case 'in': return num * 96;
+            case 'cm': return num * 96 / 2.54;
+            case 'mm': return num * 96 / 25.4;
+            case 'pt': return num * 96 / 72;
+            case 'pc': return num * 16;
+            case '%':  return null; // relative — can't resolve without a reference size
+            default:   return num;  // em/ex — not reliably resolvable, best-effort as px
+        }
+    }
+
     function parseSvgDimensions(svgText) {
         let svgWidth = 800, svgHeight = 600;
+        let viewBoxWidth = null, viewBoxHeight = null;
         try {
             const parser = new DOMParser();
             const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
             const svgElement = svgDoc.documentElement;
             const viewBox = svgElement.getAttribute('viewBox');
 
+            // Start from the viewBox's own coordinate size — the right
+            // fallback for SVGs with no absolute width/height (or a
+            // percentage one), which is common for programmatically
+            // generated SVGs and this app's own exports.
             if (viewBox) {
                 const parts = viewBox.split(/[ ,]+/);
                 if (parts.length === 4) {
-                    svgWidth = parseFloat(parts[2]);
-                    svgHeight = parseFloat(parts[3]);
+                    const vbW = parseFloat(parts[2]), vbH = parseFloat(parts[3]);
+                    if (isFinite(vbW) && vbW > 0) { viewBoxWidth = vbW; svgWidth = vbW; }
+                    if (isFinite(vbH) && vbH > 0) { viewBoxHeight = vbH; svgHeight = vbH; }
                 }
             }
-            const widthAttr = svgElement.getAttribute('width');
-            const heightAttr = svgElement.getAttribute('height');
-            if (widthAttr && !widthAttr.includes('%')) {
-                svgWidth = parseFloat(widthAttr);
-            }
-            if (heightAttr && !heightAttr.includes('%')) {
-                svgHeight = parseFloat(heightAttr);
-            }
+
+            // width/height — properly unit-converted — represent the SVG's
+            // intended physical canvas size and take priority when given as
+            // an absolute length. Note this can be a DIFFERENT numeric scale
+            // than the viewBox (e.g. viewBox="0 0 100 100" width="500px") —
+            // paper.js's importer uses the viewBox's raw numbers as the
+            // imported content's actual size and does not itself apply this
+            // scaling, so we correct for it after import (see below).
+            const parsedW = parseSvgLength(svgElement.getAttribute('width'));
+            const parsedH = parseSvgLength(svgElement.getAttribute('height'));
+            if (parsedW && parsedW > 0) svgWidth = parsedW;
+            if (parsedH && parsedH > 0) svgHeight = parsedH;
         } catch (err) {
             console.error("Error parsing SVG dimensions:", err);
         }
         if (!isFinite(svgWidth) || svgWidth <= 0) svgWidth = 800;
         if (!isFinite(svgHeight) || svgHeight <= 0) svgHeight = 600;
-        return { width: svgWidth, height: svgHeight };
+        return { width: svgWidth, height: svgHeight, viewBoxWidth, viewBoxHeight };
     }
     window.__iguhitParseSvgDimensions = parseSvgDimensions;
+
+    // paper.js's SVG importer positions/sizes content using the viewBox's
+    // raw coordinate numbers as-is — it does NOT itself apply the standard
+    // viewBox→width/height scale an SVG declares (e.g. viewBox="0 0 100 100"
+    // width="500px" should render 5x larger than the raw 100×100 numbers).
+    // Without this correction, importing such a file produces a correctly
+    // life-size ARTBOARD but tiny/oversized CONTENT. Uses "meet" scaling
+    // (uniform, fits within bounds) to match the SVG default preserveAspectRatio.
+    function correctSvgImportScale(item, dims) {
+        if (!item || !dims || !dims.viewBoxWidth || !dims.viewBoxHeight) return;
+        const scaleX = dims.width / dims.viewBoxWidth;
+        const scaleY = dims.height / dims.viewBoxHeight;
+        const uniformScale = Math.min(scaleX, scaleY);
+        if (isFinite(uniformScale) && uniformScale > 0 && Math.abs(uniformScale - 1) > 0.01) {
+            item.scale(uniformScale);
+        }
+    }
+    window.__iguhitCorrectSvgImportScale = correctSvgImportScale;
 
     document.getElementById('btn-import-svg').addEventListener('click', () => {
         document.getElementById('svg-file-input').click();
@@ -2830,6 +2882,12 @@ function setupUIEventListeners() {
                     expandShapes: false,
                     insert: true,
                     onLoad: (item) => {
+                        // Correct for paper.js importing at the SVG's raw
+                        // viewBox coordinate scale instead of its declared
+                        // physical size — must happen before anything below
+                        // compares the item's bounds to svgWidth/svgHeight.
+                        correctSvgImportScale(item, dims);
+
                         // Align the imported item exactly centered on the resized artboard
                         item.position = new paper.Point(200 + svgWidth / 2, 150 + svgHeight / 2);
                         
@@ -4377,6 +4435,7 @@ document.addEventListener('drop', function(e) {
             paper.project.importSVG(content, {
                 expandShapes: false,
                 onLoad: (item) => {
+                    if (dims && window.__iguhitCorrectSvgImportScale) window.__iguhitCorrectSvgImportScale(item, dims);
                     item.position = dims
                         ? new paper.Point(200 + dims.width / 2, 150 + dims.height / 2)
                         : paper.view.center;
@@ -5784,86 +5843,51 @@ function runWithBusyOverlayAsync(message, asyncFn) {
 }
 window.__iguhitRunWithBusyOverlayAsync = runWithBusyOverlayAsync;
 
-// ── Google Drive integration ───────────────────────────
-// Uses Google Identity Services (GIS) for OAuth and calls the Drive REST
-// API directly with fetch — no need for the heavier gapi client library
-// just to upload a file.
-//
-// IMPORTANT — setup required before this works:
-// You need your own OAuth 2.0 Client ID from Google Cloud Console
-// (console.cloud.google.com → APIs & Services → Credentials → Create
-// Credentials → OAuth client ID → Web application), with your app's URL
-// added under "Authorized JavaScript origins". Paste that Client ID below.
-// Until you do, the Drive buttons will show a clear message explaining
-// this rather than failing silently.
-const GOOGLE_DRIVE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-
-let googleDriveAccessToken = null;
-let googleDriveTokenClient = null;
-
-function isGoogleDriveConfigured() {
-    return GOOGLE_DRIVE_CLIENT_ID && GOOGLE_DRIVE_CLIENT_ID.indexOf('YOUR_GOOGLE_CLIENT_ID') !== 0;
-}
-
-function getGoogleDriveAccessToken() {
-    return new Promise((resolve, reject) => {
-        if (!isGoogleDriveConfigured()) {
-            reject(new Error('Google Drive isn\'t set up yet for this app — it needs a Google OAuth Client ID added in app.js (GOOGLE_DRIVE_CLIENT_ID) before this will work.'));
-            return;
-        }
-        if (!window.google || !google.accounts || !google.accounts.oauth2) {
-            reject(new Error('Google\'s sign-in library failed to load — check your internet connection and try again.'));
-            return;
-        }
-        if (!googleDriveTokenClient) {
-            googleDriveTokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: GOOGLE_DRIVE_CLIENT_ID,
-                scope: GOOGLE_DRIVE_SCOPE,
-                callback: () => {} // set per-request just below
+// ── "Save to Google Drive" ──────────────────────────────
+// A web app can't silently write to someone's Google Drive without the
+// app's developer registering real OAuth credentials with Google, tied to
+// the exact domain it's hosted on — that's not something that can be made
+// to "just work" from here. Instead, this uses the File System Access API
+// (showSaveFilePicker), which opens the browser's own native save dialog —
+// zero setup required. If Google Drive for Desktop is installed (or on
+// ChromeOS, where Drive is built into the Files app), Drive shows up as a
+// regular folder the person can navigate to and save straight into.
+// Supported in Chrome/Edge; falls back to a normal download elsewhere.
+async function saveBlobToDiskOrDrive(blob, suggestedName, mimeType, extension, description) {
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: suggestedName,
+                types: [{ description: description, accept: { [mimeType]: ['.' + extension] } }]
             });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return 'saved';
+        } catch (err) {
+            if (err && err.name === 'AbortError') return 'cancelled'; // person closed the dialog — not an error
+            throw err;
         }
-        googleDriveTokenClient.callback = (resp) => {
-            if (resp && resp.error) { reject(new Error('Google sign-in failed: ' + resp.error)); return; }
-            googleDriveAccessToken = resp.access_token;
-            resolve(googleDriveAccessToken);
-        };
-        // Skip the consent screen on repeat use within the same session.
-        googleDriveTokenClient.requestAccessToken({ prompt: googleDriveAccessToken ? '' : 'consent' });
-    });
+    }
+    return 'unsupported';
 }
 
-async function uploadBlobToGoogleDrive(fileName, mimeType, blob) {
-    const token = await getGoogleDriveAccessToken();
-    const metadata = { name: fileName, mimeType: mimeType };
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', blob);
-
-    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token },
-        body: form
-    });
-    if (!res.ok) {
-        let detail = '';
-        try { detail = (await res.json()).error?.message || ''; } catch (e) {}
-        // An expired/invalid token is the most common reason this fails
-        // after the app's been open a while — clear it so the next attempt
-        // re-prompts instead of repeating the same failure.
-        if (res.status === 401) googleDriveAccessToken = null;
-        throw new Error('Google Drive upload failed (' + res.status + ')' + (detail ? ': ' + detail : '.'));
-    }
-    return res.json();
+function downloadBlob(blob, filename) {
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: filename });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
 document.getElementById('btn-save-iguhit-drive')?.addEventListener('click', () => {
-    runWithBusyOverlayAsync('Connecting to Google Drive…', async () => {
+    runWithBusyOverlayAsync('Preparing file…', async () => {
         const blob = buildIguhitFileBlob();
-        showBusyOverlay('Uploading to Google Drive…');
-        const result = await uploadBlobToGoogleDrive('artwork.iguhit', 'application/json', blob);
-        if (window.showNotification) showNotification('Saved "' + result.name + '" to Google Drive ✓');
-        else alert('Saved to Google Drive: ' + result.name);
+        const result = await saveBlobToDiskOrDrive(blob, 'artwork.iguhit', 'application/json', 'iguhit', 'iGuhit Project File');
+        if (result === 'saved') {
+            if (window.showNotification) showNotification('Saved ✓ — pick your Google Drive folder in the dialog to save straight there.');
+        } else if (result === 'unsupported') {
+            downloadBlob(blob, 'artwork.iguhit');
+            alert('Your browser doesn\'t support choosing a save location directly (this needs Chrome or Edge). The file downloaded normally instead — you can upload it to Google Drive from there.');
+        }
     });
 });
 
@@ -5871,10 +5895,13 @@ document.getElementById('btn-export-pdf-drive')?.addEventListener('click', () =>
     runWithBusyOverlayAsync('Generating PDF…', async () => {
         const blob = buildPdfBlob();
         if (!blob) return; // buildPdfBlob() already alerted why (e.g. no artboard)
-        showBusyOverlay('Uploading to Google Drive…');
-        const result = await uploadBlobToGoogleDrive('iGuhit-export.pdf', 'application/pdf', blob);
-        if (window.showNotification) showNotification('Saved "' + result.name + '" to Google Drive ✓');
-        else alert('Saved to Google Drive: ' + result.name);
+        const result = await saveBlobToDiskOrDrive(blob, 'iGuhit-export.pdf', 'application/pdf', 'pdf', 'PDF Document');
+        if (result === 'saved') {
+            if (window.showNotification) showNotification('Saved ✓ — pick your Google Drive folder in the dialog to save straight there.');
+        } else if (result === 'unsupported') {
+            downloadBlob(blob, 'iGuhit-export.pdf');
+            alert('Your browser doesn\'t support choosing a save location directly (this needs Chrome or Edge). The PDF downloaded normally instead — you can upload it to Google Drive from there.');
+        }
     });
 });
 

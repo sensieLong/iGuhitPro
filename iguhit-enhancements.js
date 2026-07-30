@@ -679,6 +679,7 @@
                     expandShapes: false,
                     onLoad: item => {
                         if (item) {
+                            if (dims && window.__iguhitCorrectSvgImportScale) window.__iguhitCorrectSvgImportScale(item, dims);
                             item.position = dims
                                 ? new paper.Point(200 + dims.width / 2, 150 + dims.height / 2)
                                 : paper.view.center;
