@@ -668,7 +668,8 @@
         const reader = new FileReader();
         reader.onload = evt => {
             try {
-                const svgText = evt.target.result;
+                let svgText = evt.target.result;
+                if (window.__iguhitInlineSvgClassStyles) svgText = window.__iguhitInlineSvgClassStyles(svgText);
                 const dims = window.__iguhitParseSvgDimensions ? window.__iguhitParseSvgDimensions(svgText) : null;
                 if (dims && window.updateArtboardSize) {
                     if (window.state) window.state.artboardBgColor = window.state.artboardBgColor || '#ffffff';

@@ -2773,10 +2773,14 @@ function setupUIEventListeners() {
     });
 
     // Converts an SVG length string ("210mm", "8.5in", "595.28pt", "600",
-    // "600px"...) to CSS pixels (the standard 96px/inch reference SVG and
-    // CSS both use). Without this, a width like "210mm" — completely
-    // typical from Illustrator/Inkscape/Figma exports — was being read as
-    // a bare number and misinterpreted as 210 raw pixels instead of ~794.
+    // "600px"...) to this app's OWN pixel space. Important: this app does
+    // NOT use the standard CSS/SVG 96px/inch reference — its size fields
+    // and PDF export both convert pixels↔physical-units using
+    // state.artboardResolution (default 300) instead (see
+    // convertUnitToPixels/convertPixelsToUnit above). Using 96 here would
+    // produce an artboard that's the right RATIO but the wrong absolute
+    // size once the app reads it back at its own DPI — e.g. a 22.3in-wide
+    // SVG would come out reading as ~7.1in instead of 22.3in.
     function parseSvgLength(str) {
         if (!str) return null;
         const m = /^\s*([\-\d.eE+]+)\s*(px|pt|pc|in|mm|cm|em|ex|%)?\s*$/.exec(str);
@@ -2784,13 +2788,14 @@ function setupUIEventListeners() {
         const num = parseFloat(m[1]);
         if (!isFinite(num)) return null;
         const unit = (m[2] || 'px').toLowerCase();
+        const ppi = state.artboardResolution || 300;
         switch (unit) {
             case 'px': return num;
-            case 'in': return num * 96;
-            case 'cm': return num * 96 / 2.54;
-            case 'mm': return num * 96 / 25.4;
-            case 'pt': return num * 96 / 72;
-            case 'pc': return num * 16;
+            case 'in': return num * ppi;
+            case 'cm': return num * (ppi / 2.54);
+            case 'mm': return num * (ppi / 25.4);
+            case 'pt': return num * (ppi / 72);
+            case 'pc': return num * (ppi / 6);
             case '%':  return null; // relative — can't resolve without a reference size
             default:   return num;  // em/ex — not reliably resolvable, best-effort as px
         }
@@ -2856,6 +2861,60 @@ function setupUIEventListeners() {
     }
     window.__iguhitCorrectSvgImportScale = correctSvgImportScale;
 
+    // paper.js's SVG importer reliably reads inline presentation attributes
+    // (fill="red") and inline style="" attributes, but does NOT parse
+    // embedded <style> blocks with class selectors — a very common export
+    // pattern from tools like Figma (<style>.cls-1{fill:#e91e63}</style>
+    // <path class="cls-1" .../>). Without handling this, every element
+    // styled that way imports with no color at all, which looks like the
+    // whole file lost its color. This resolves simple ".class{...}" rules
+    // and writes the result directly onto each matching element's style
+    // attribute before import (existing inline styles still win, matching
+    // normal CSS specificity).
+    function inlineSvgClassStyles(svgText) {
+        try {
+            if (svgText.indexOf('<style') === -1) return svgText; // nothing to do
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(svgText, 'image/svg+xml');
+            if (doc.querySelector('parsererror')) return svgText;
+
+            const rules = {}; // className -> "prop:value;prop2:value2;"
+            doc.querySelectorAll('style').forEach(styleEl => {
+                const css = styleEl.textContent || '';
+                const ruleRe = /([^{}]+)\{([^{}]*)\}/g;
+                let m;
+                while ((m = ruleRe.exec(css))) {
+                    const decls = m[2].trim();
+                    if (!decls) continue;
+                    m[1].split(',').forEach(sel => {
+                        sel = sel.trim();
+                        if (sel[0] === '.') {
+                            const cls = sel.slice(1).trim();
+                            if (cls) rules[cls] = (rules[cls] ? rules[cls] + ';' : '') + decls;
+                        }
+                    });
+                }
+            });
+            if (Object.keys(rules).length === 0) return svgText;
+
+            doc.querySelectorAll('[class]').forEach(el => {
+                const classes = (el.getAttribute('class') || '').split(/\s+/).filter(Boolean);
+                let merged = '';
+                classes.forEach(c => { if (rules[c]) merged += rules[c] + ';'; });
+                if (merged) {
+                    const existing = el.getAttribute('style') || '';
+                    el.setAttribute('style', merged + existing); // existing (more specific) wins by coming last
+                }
+            });
+
+            return new XMLSerializer().serializeToString(doc);
+        } catch (e) {
+            console.warn('iGuhit: could not inline SVG <style> classes, importing as-is:', e);
+            return svgText;
+        }
+    }
+    window.__iguhitInlineSvgClassStyles = inlineSvgClassStyles;
+
     document.getElementById('btn-import-svg').addEventListener('click', () => {
         document.getElementById('svg-file-input').click();
     });
@@ -2865,7 +2924,7 @@ function setupUIEventListeners() {
         if (file) {
             const reader = new FileReader();
             reader.onload = (event) => {
-                const text = event.target.result;
+                const text = inlineSvgClassStyles(event.target.result);
 
                 // Parse SVG to extract dimensions
                 const dims = parseSvgDimensions(text);
@@ -2893,45 +2952,14 @@ function setupUIEventListeners() {
                         
                         deselectAll();
                         
-                        // If it's a group (representing the root <svg>), ungroup its direct children
+                        // If it's a group (representing the root <svg>), ungroup its direct
+                        // children so they behave like normal top-level shapes in this app.
                         if (item instanceof paper.Group) {
                             const children = [...item.children];
                             const parent = item.parent;
                             const index = item.index;
-                            
-                            // Detect if any child acts as a redundant artboard/background
-                            let bgItem = null;
-                            for (let i = 0; i < children.length; i++) {
-                                const child = children[i];
-                                if (child instanceof paper.Path && 
-                                    Math.abs(child.bounds.width - svgWidth) < 5 && 
-                                    Math.abs(child.bounds.height - svgHeight) < 5) {
-                                    bgItem = child;
-                                    break;
-                                }
-                            }
-                            
-                            // If a background item is found, apply its fill to our workspace artboard and remove it
-                            if (bgItem) {
-                                if (bgItem.fillColor) {
-                                    try {
-                                        state.artboardBgColor = bgItem.fillColor.toCSS ? bgItem.fillColor.toCSS(true) : bgItem.fillColor;
-                                        if (artboardRect) {
-                                            artboardRect.fillColor = bgItem.fillColor;
-                                        }
-                                    } catch (e) {
-                                        console.error("Error setting artboard fill:", e);
-                                    }
-                                }
-                                // Remove the background path from the children list
-                                const bgIndex = children.indexOf(bgItem);
-                                if (bgIndex > -1) {
-                                    children.splice(bgIndex, 1);
-                                }
-                                bgItem.remove();
-                            }
-                            
-                            // Insert remaining children into the parent layer at the group's index
+
+                            // Insert children into the parent layer at the group's index
                             parent.insertChildren(index, children);
                             // Remove the empty root <svg> group
                             item.remove();
@@ -4423,9 +4451,10 @@ document.addEventListener('drop', function(e) {
     const reader = new FileReader();
 
     reader.onload = function(evt) {
-        const content = evt.target.result;
+        let content = evt.target.result;
 
         if (file.name.endsWith('.svg')) {
+            if (window.__iguhitInlineSvgClassStyles) content = window.__iguhitInlineSvgClassStyles(content);
             const dims = window.__iguhitParseSvgDimensions ? window.__iguhitParseSvgDimensions(content) : null;
             if (dims && window.updateArtboardSize) {
                 state.artboardBgColor = state.artboardBgColor || '#ffffff';
@@ -5844,16 +5873,84 @@ function runWithBusyOverlayAsync(message, asyncFn) {
 window.__iguhitRunWithBusyOverlayAsync = runWithBusyOverlayAsync;
 
 // ── "Save to Google Drive" ──────────────────────────────
-// A web app can't silently write to someone's Google Drive without the
-// app's developer registering real OAuth credentials with Google, tied to
-// the exact domain it's hosted on — that's not something that can be made
-// to "just work" from here. Instead, this uses the File System Access API
-// (showSaveFilePicker), which opens the browser's own native save dialog —
-// zero setup required. If Google Drive for Desktop is installed (or on
-// ChromeOS, where Drive is built into the Files app), Drive shows up as a
-// regular folder the person can navigate to and save straight into.
-// Supported in Chrome/Edge; falls back to a normal download elsewhere.
-async function saveBlobToDiskOrDrive(blob, suggestedName, mimeType, extension, description) {
+// Uploads directly to a Google account the person picks, via Google
+// Identity Services (OAuth) + the Drive REST API — this is what actually
+// shows the "choose an account" popup and saves into that account's Drive,
+// rather than a generic device save dialog.
+//
+// IMPORTANT — one-time setup required before this works:
+// Google requires every app to have its own registered OAuth Client ID
+// (tied to the exact domain it's hosted on) before it can ask anyone to
+// sign in — this can't be filled in generically here, only you can create
+// it for your own deployment:
+//   1. console.cloud.google.com → APIs & Services → Credentials
+//   2. Create Credentials → OAuth client ID → Web application
+//   3. Under "Authorized JavaScript origins", add the exact URL this app
+//      is hosted at (e.g. https://yourapp.com)
+//   4. Paste the generated Client ID below, replacing the placeholder.
+// Until that's done, these buttons automatically fall back to the
+// browser's native save dialog instead (still lets you save into Drive
+// manually if Drive is mounted locally) rather than failing with nothing.
+const GOOGLE_DRIVE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+let googleDriveAccessToken = null;
+let googleDriveTokenClient = null;
+
+function isGoogleDriveConfigured() {
+    return GOOGLE_DRIVE_CLIENT_ID && GOOGLE_DRIVE_CLIENT_ID.indexOf('YOUR_GOOGLE_CLIENT_ID') !== 0;
+}
+
+function getGoogleDriveAccessToken() {
+    return new Promise((resolve, reject) => {
+        if (!window.google || !google.accounts || !google.accounts.oauth2) {
+            reject(new Error('not-loaded'));
+            return;
+        }
+        if (!googleDriveTokenClient) {
+            googleDriveTokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_DRIVE_CLIENT_ID,
+                scope: GOOGLE_DRIVE_SCOPE,
+                callback: () => {} // set per-request just below
+            });
+        }
+        googleDriveTokenClient.callback = (resp) => {
+            if (resp && resp.error) { reject(new Error('Google sign-in failed: ' + resp.error)); return; }
+            googleDriveAccessToken = resp.access_token;
+            resolve(googleDriveAccessToken);
+        };
+        // This is what shows Google's own account-picker/consent popup.
+        // Skips re-prompting if we already have a token this session.
+        googleDriveTokenClient.requestAccessToken({ prompt: googleDriveAccessToken ? '' : 'select_account consent' });
+    });
+}
+
+async function uploadBlobToGoogleDrive(fileName, mimeType, blob) {
+    const token = await getGoogleDriveAccessToken();
+    const metadata = { name: fileName, mimeType: mimeType };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', blob);
+
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: form
+    });
+    if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.json()).error?.message || ''; } catch (e) {}
+        if (res.status === 401) googleDriveAccessToken = null; // expired/invalid — re-prompt next time
+        throw new Error('Google Drive upload failed (' + res.status + ')' + (detail ? ': ' + detail : '.'));
+    }
+    return res.json();
+}
+
+// Falls back to the browser's native save dialog (works today, zero setup)
+// when Google's OAuth isn't available or configured — still lets the
+// person reach Drive manually if it's mounted locally, rather than
+// leaving them with nothing.
+async function saveBlobToDiskFallback(blob, suggestedName, mimeType, extension, description) {
     if (window.showSaveFilePicker) {
         try {
             const handle = await window.showSaveFilePicker({
@@ -5865,29 +5962,47 @@ async function saveBlobToDiskOrDrive(blob, suggestedName, mimeType, extension, d
             await writable.close();
             return 'saved';
         } catch (err) {
-            if (err && err.name === 'AbortError') return 'cancelled'; // person closed the dialog — not an error
+            if (err && err.name === 'AbortError') return 'cancelled';
             throw err;
         }
     }
-    return 'unsupported';
-}
-
-function downloadBlob(blob, filename) {
-    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: filename });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: suggestedName });
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    return 'downloaded';
+}
+
+async function saveToGoogleDrive(blob, fileName, mimeType, extension, description) {
+    if (isGoogleDriveConfigured()) {
+        try {
+            showBusyOverlay('Choose a Google account…');
+            const result = await uploadBlobToGoogleDrive(fileName, mimeType, blob);
+            if (window.showNotification) showNotification('Saved "' + result.name + '" to Google Drive ✓');
+            else alert('Saved to Google Drive: ' + result.name);
+            return;
+        } catch (err) {
+            if (err && err.message === 'not-loaded') {
+                console.warn('Google sign-in library unavailable, falling back to native save dialog.');
+            } else {
+                throw err;
+            }
+        }
+    }
+    // Not configured yet (or Google's library failed to load) — fall back
+    // rather than dead-ending.
+    const result = await saveBlobToDiskFallback(blob, fileName, mimeType, extension, description);
+    if (result === 'saved') {
+        if (window.showNotification) showNotification('Saved ✓ — pick your Google Drive folder in the dialog to save straight there.');
+    } else if (result === 'downloaded') {
+        alert((isGoogleDriveConfigured() ? '' : 'Direct Google Drive upload isn\'t set up for this app yet (needs a one-time Google OAuth Client ID — see the comment above GOOGLE_DRIVE_CLIENT_ID in app.js). ') +
+              'The file downloaded normally instead — you can upload it to Google Drive from there.');
+    }
 }
 
 document.getElementById('btn-save-iguhit-drive')?.addEventListener('click', () => {
     runWithBusyOverlayAsync('Preparing file…', async () => {
         const blob = buildIguhitFileBlob();
-        const result = await saveBlobToDiskOrDrive(blob, 'artwork.iguhit', 'application/json', 'iguhit', 'iGuhit Project File');
-        if (result === 'saved') {
-            if (window.showNotification) showNotification('Saved ✓ — pick your Google Drive folder in the dialog to save straight there.');
-        } else if (result === 'unsupported') {
-            downloadBlob(blob, 'artwork.iguhit');
-            alert('Your browser doesn\'t support choosing a save location directly (this needs Chrome or Edge). The file downloaded normally instead — you can upload it to Google Drive from there.');
-        }
+        await saveToGoogleDrive(blob, 'artwork.iguhit', 'application/json', 'iguhit', 'iGuhit Project File');
     });
 });
 
@@ -5895,13 +6010,7 @@ document.getElementById('btn-export-pdf-drive')?.addEventListener('click', () =>
     runWithBusyOverlayAsync('Generating PDF…', async () => {
         const blob = buildPdfBlob();
         if (!blob) return; // buildPdfBlob() already alerted why (e.g. no artboard)
-        const result = await saveBlobToDiskOrDrive(blob, 'iGuhit-export.pdf', 'application/pdf', 'pdf', 'PDF Document');
-        if (result === 'saved') {
-            if (window.showNotification) showNotification('Saved ✓ — pick your Google Drive folder in the dialog to save straight there.');
-        } else if (result === 'unsupported') {
-            downloadBlob(blob, 'iGuhit-export.pdf');
-            alert('Your browser doesn\'t support choosing a save location directly (this needs Chrome or Edge). The PDF downloaded normally instead — you can upload it to Google Drive from there.');
-        }
+        await saveToGoogleDrive(blob, 'iGuhit-export.pdf', 'application/pdf', 'pdf', 'PDF Document');
     });
 });
 
